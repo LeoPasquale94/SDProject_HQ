@@ -1,0 +1,11 @@
+.gradle/
+.idea
+.DS_Store
+out/
+.o
+.class
+.pyc
+.tmp
+.log
+target/
+bin
