@@ -1,7 +1,7 @@
 package Client
 
-import AuthenticationCertification.{Certificate, Crypto, GrantTS, SignedMex}
-import Messages.{ReadAnsMessage, ReadMessage, RequireReadMessage, RequireWriteMessage, ResolveMessage, Write1Message, Write1OKMessage, Write1RefusedMessage, Write2AnsMessage, Write2Message, WriteBackReadMessage, WriteBackWriteMessage}
+import AuthenticationCertification.{Certificate, Crypto, GrantTS}
+import Messages.{ReadAnsMessage, ReadMessage, RequireReadMessage, RequireWriteMessage, ResolveMessage, SignedMessage, Write1Message, Write1OKMessage, Write1RefusedMessage, Write2AnsMessage, Write2Message, WriteBackReadMessage, WriteBackWriteMessage}
 import akka.actor.{Actor, ActorRef}
 
 case class ClentActor(clientID: String, serverReferences: Map[String, ActorRef]) extends Actor {
@@ -19,32 +19,32 @@ case class ClentActor(clientID: String, serverReferences: Map[String, ActorRef])
                   latestWriteC: Option[Certificate[GrantTS]],
                   refusedMessages: List[Write1RefusedMessage],
                   recevedMessages: List[String]): Receive = {
-    case event: SignedMex [Write1OKMessage] =>
+    case event: SignedMessage [Write1OKMessage] =>
       if(checkMex(event, recevedMessages))
-        computeWrite1OkMessage(event.mex, w1, oKMessages, latestWriteC, refusedMessages, recevedMessages :+ event.idSigner)
-    case event: SignedMex [Write1RefusedMessage] =>
+        computeWrite1OkMessage(event.mex, w1, oKMessages, latestWriteC, refusedMessages, recevedMessages :+ event.signerID)
+    case event: SignedMessage [Write1RefusedMessage] =>
       if(checkMex(event, recevedMessages))
-        computeWrite1RefusedMessage(event.mex, w1, oKMessages, latestWriteC, refusedMessages, recevedMessages :+ event.idSigner )
-    case event: SignedMex [Write2AnsMessage] =>
+        computeWrite1RefusedMessage(event.mex, w1, oKMessages, latestWriteC, refusedMessages, recevedMessages :+ event.signerID )
+    case event: SignedMessage [Write2AnsMessage] =>
       if(checkMex(event, recevedMessages))
         otherClientIsDoingThisWrite(event.mex)
   }
 
   def write1OkQuorum(w1: Write1Message, writeC: Certificate[GrantTS],latestWriteC: Certificate[GrantTS], recevedMessages: List[String]): Receive = {
-    case event: SignedMex [Write1OKMessage] =>
+    case event: SignedMessage [Write1OKMessage] =>
       if(checkMex(event, recevedMessages))
-        computeWrite1OkMessageQuorumState(event.mex, w1, writeC, latestWriteC, recevedMessages :+ event.idSigner)
+        computeWrite1OkMessageQuorumState(event.mex, w1, writeC, latestWriteC, recevedMessages :+ event.signerID)
 
   }
 
   def write2State (recevedMessages: List[String]): Receive = {
-    case event: SignedMex [Write2AnsMessage] =>
+    case event: SignedMessage [Write2AnsMessage] =>
       if(checkMex(event, recevedMessages))
-        computeWrite2State(event.mex, recevedMessages :+ event.idSigner)
+        computeWrite2State(event.mex, recevedMessages :+ event.signerID)
   }
 
   def readState( latestWriteC: Option[Certificate[GrantTS]], recevedMessages: List[String]): Receive = {
-    case event: SignedMex[ReadAnsMessage] =>
+    case event: SignedMessage[ReadAnsMessage] =>
       if(checkMex(event, recevedMessages))
         computeReadAnsMessage(event.mex,latestWriteC, recevedMessages)
   }
@@ -96,10 +96,10 @@ case class ClentActor(clientID: String, serverReferences: Map[String, ActorRef])
           .diff(eventualQuorum.get)
           .filter(_.grantTS.areTSOrVSNotEqual(mex.grantTS))
           .map(_.grantTS.replicaID)
-          sendSignMexToAny(replicasNotUpdate, WriteBackWriteMessage(mex.currentC, w1)) //Controllare per sicurezza
+        sendSignMexToAny(replicasNotUpdate, WriteBackWriteMessage(mex.currentC, w1)) //Controllare per sicurezza
       }
     }else if (newLatestWriteC.nonEmpty && (newLatestWriteC.get.items.head > mex.currentC.items.head)){
-        sendToOne(mex.grantTS.replicaID, WriteBackWriteMessage(newLatestWriteC.get, w1))
+      sendToOne(mex.grantTS.replicaID, WriteBackWriteMessage(newLatestWriteC.get, w1))
 
     }else if(newOkMessages.size > QUORUM ){
       context.become(conflictState)
@@ -193,8 +193,8 @@ case class ClentActor(clientID: String, serverReferences: Map[String, ActorRef])
 
   private def getOperationNumber(objectID: String): Int = ???
 
-  private def checkMex[T](message:SignedMex[T], recevedMessages: List[String] ): Boolean = {
-    Crypto.checkMex(message) && !recevedMessages.contains(message.idSigner)}
+  private def checkMex[T](message:SignedMessage[T], recevedMessages: List[String] ): Boolean = {
+    Crypto.checkMex(message) && !recevedMessages.contains(message.signerID)}
 
   private def returnClient(result: Any): Unit = ???
 
@@ -204,4 +204,4 @@ case class ClentActor(clientID: String, serverReferences: Map[String, ActorRef])
     case _ => Option.apply(currentC)
   }
 
-  }
+}
