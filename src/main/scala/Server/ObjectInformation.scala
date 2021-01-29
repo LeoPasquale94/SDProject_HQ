@@ -1,7 +1,7 @@
 package Server
 
 import AuthenticationCertification.{Certificate, GrantTS}
-import Messages.Write1Message
+import messages.Write1Message
 
 case class Ops(write1Requests: List[Write1Message], write1ReqExeRecently: Write1Message ) {
   def addWrite1Request(mex: Write1Message):Ops = Ops(write1Requests :+ mex, write1ReqExeRecently)
