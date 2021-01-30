@@ -10,7 +10,7 @@ package AuthenticationCertification
  * @param viewStemp
  * @param replicaID
  */
-case class GrantTS(clientID: String, objectID: String,
+case class GrantTS(clientID: Int, objectID: String,
                    numberOperation: Int, hashOperation: Int,
                    timeStamp: Double, viewStemp: Double,
                    replicaID: Int) {

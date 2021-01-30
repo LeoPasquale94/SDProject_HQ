@@ -1,3 +1,3 @@
 package messages
 
-case class SignedMessage[T](signerID: String, msg: T, sign: Array[Byte])
+case class SignedMessage[T](signerID: Int, msg: T, sign: Array[Byte])

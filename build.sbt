@@ -10,6 +10,6 @@ lazy val root = (project in file("."))
     javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-actor" % "2.6.6",
-      "org.scala-lang.modules" %% "scala-async" % "0.10.0"
+     "org.scala-lang.modules" %% "scala-async" % "0.10.0"
     )
   )

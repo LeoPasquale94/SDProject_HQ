@@ -1,7 +1,7 @@
 package AuthenticationCertification
 
 case class Certificate[T] (items: List[T]){
- def == (other: Certificate [T]): Boolean = items.forall(compare(_, _ == _))
+ def == (other: Certificate [T]): Boolean = items.size == other.items.size && items.indices.forall(x => other.items(x) == items(x))
 
  def + (el: T): Certificate[T] = Certificate(items :+ el)
 
