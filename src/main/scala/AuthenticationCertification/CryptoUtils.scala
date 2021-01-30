@@ -2,7 +2,7 @@ package AuthenticationCertification
 
 import java.security.SecureRandom
 
-import Messages.SignedMessage
+import messages.SignedMessage
 import javax.crypto.{Cipher, KeyGenerator}
 import javax.crypto.spec.{IvParameterSpec, SecretKeySpec}
 

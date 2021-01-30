@@ -1,8 +1,9 @@
-package Messages
+package messages
 
 import AuthenticationCertification.{Certificate, GrantTS}
 import Utils.WriteOperationType.WriteOperationType
 
+//TODO codice del messaggio in message
 case class RequireWriteMessage(objectID: String, writeOperationType: WriteOperationType)
 
 case class RequireReadMessage(objectID: String)
