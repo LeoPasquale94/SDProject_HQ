@@ -21,31 +21,31 @@ case class ClientActor(clientID: String, serverReferences: Map[String, ActorRef]
                   recevedMessages: List[String]): Receive = {
     case event: SignedMessage[Write1OKMessage] =>
       if (checkMex(event, recevedMessages))
-        computeWrite1OkMessage(event.mex, w1, oKMessages, latestWriteC, refusedMessages, recevedMessages :+ event.signerID)
+        computeWrite1OkMessage(event.msg, w1, oKMessages, latestWriteC, refusedMessages, recevedMessages :+ event.signerID)
     case event: SignedMessage[Write1RefusedMessage] =>
       if (checkMex(event, recevedMessages))
-        computeWrite1RefusedMessage(event.mex, w1, oKMessages, latestWriteC, refusedMessages, recevedMessages :+ event.signerID)
+        computeWrite1RefusedMessage(event.msg, w1, oKMessages, latestWriteC, refusedMessages, recevedMessages :+ event.signerID)
     case event: SignedMessage[Write2AnsMessage] =>
       if (checkMex(event, recevedMessages))
-        otherClientIsDoingThisWrite(event.mex)
+        otherClientIsDoingThisWrite(event.msg)
   }
 
   def write1OkQuorumState(w1: Write1Message, writeC: Certificate[GrantTS], latestWriteC: Certificate[GrantTS], recevedMessages: List[String]): Receive = {
     case event: SignedMessage[Write1OKMessage] =>
       if (checkMex(event, recevedMessages))
-        computeWrite1OkMessageQuorumState(event.mex, w1, writeC, latestWriteC, recevedMessages :+ event.signerID)
+        computeWrite1OkMessageQuorumState(event.msg, w1, writeC, latestWriteC, recevedMessages :+ event.signerID)
   }
 
   def write2State(recevedMessages: List[String]): Receive = {
     case event: SignedMessage[Write2AnsMessage] =>
       if (checkMex(event, recevedMessages))
-        computeWrite2State(event.mex, recevedMessages :+ event.signerID)
+        computeWrite2State(event.msg, recevedMessages :+ event.signerID)
   }
 
   def readState(latestWriteC: Option[Certificate[GrantTS]], recevedMessages: List[String]): Receive = {
     case event: SignedMessage[ReadAnsMessage] =>
       if (checkMex(event, recevedMessages))
-        computeReadAnsMessage(event.mex, latestWriteC, recevedMessages)
+        computeReadAnsMessage(event.msg, latestWriteC, recevedMessages)
   }
 
   private def requireWrite(mex: RequireWriteMessage): Unit = {
