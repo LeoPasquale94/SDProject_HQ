@@ -16,9 +16,9 @@ object Crypto {
 
   var key1:SecretKeySpec = getAESKey(BITS_AES_SECRET_KEY)
 
-  def toSign[T](idSigner: String, mex: T): SignedMessage [T] = SignedMessage(idSigner, mex, sign(mex, searchKey(idSigner)))
+  def toSign[T](idSigner: Int, mex: T): SignedMessage [T] = SignedMessage(idSigner, mex, sign(mex, searchKey(idSigner)))
 
-  def checkMex [T] (signedMessage: SignedMessage [T]):Boolean = sign(signedMessage.mex, searchKey(signedMessage.signerID)).deep == signedMessage.sign.deep
+  def checkMex [T] (signedMessage: SignedMessage [T]):Boolean = sign(signedMessage.msg, searchKey(signedMessage.signerID)).deep == signedMessage.sign.deep
 
   def sign [T] (mex: T, key: SecretKeySpec ): Array[Byte] = {
 
@@ -30,7 +30,7 @@ object Crypto {
     sign
   }
 
-  private def searchKey (idOwner: String): SecretKeySpec = key1
+  private def searchKey (idOwner: Int): SecretKeySpec = key1
 
   private def getAESKey(keysize: Int): SecretKeySpec = {
     val keyGen = KeyGenerator.getInstance("AES")

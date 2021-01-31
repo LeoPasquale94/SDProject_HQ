@@ -1,24 +1,25 @@
 package client.proxy
 
 import AuthenticationCertification.{Certificate, Crypto, GrantTS}
-import messages._
 import akka.actor.{Actor, ActorRef}
+import messages._
 
-case class ClientActor(clientID: String, serverReferences: Map[String, ActorRef]) extends Actor {
+case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) extends Actor {
 
   private val N_REPLICAS = serverReferences.size
   private val QUORUM = 2 / 3 * (N_REPLICAS - 1)
 
-  override def receive: Receive = {
-    case event: RequireWriteMessage => requireWrite(event)
+
+  override def receive : Receive = {
+    case event: RequireWriteMessage[T] => requireWrite(event)
     case event: RequireReadMessage => requireRead(event)
   }
 
-  def write1State(w1: Write1Message,
+  def write1State(w1: Write1Message[T],
                   oKMessages: List[List[Write1OKMessage]],
                   latestWriteC: Option[Certificate[GrantTS]],
                   refusedMessages: List[Write1RefusedMessage],
-                  recevedMessages: List[String]): Receive = {
+                  recevedMessages: List[Int]): Receive = {
     case event: SignedMessage[Write1OKMessage] =>
       if (checkMex(event, recevedMessages))
         computeWrite1OkMessage(event.msg, w1, oKMessages, latestWriteC, refusedMessages, recevedMessages :+ event.signerID)
@@ -30,26 +31,26 @@ case class ClientActor(clientID: String, serverReferences: Map[String, ActorRef]
         otherClientIsDoingThisWrite(event.msg)
   }
 
-  def write1OkQuorumState(w1: Write1Message, writeC: Certificate[GrantTS], latestWriteC: Certificate[GrantTS], recevedMessages: List[String]): Receive = {
+  def write1OkQuorumState(w1: Write1Message[T], writeC: Certificate[GrantTS], latestWriteC: Certificate[GrantTS], recevedMessages: List[Int]): Receive = {
     case event: SignedMessage[Write1OKMessage] =>
       if (checkMex(event, recevedMessages))
         computeWrite1OkMessageQuorumState(event.msg, w1, writeC, latestWriteC, recevedMessages :+ event.signerID)
   }
 
-  def write2State(recevedMessages: List[String]): Receive = {
+  def write2State(recevedMessages: List[Int]): Receive = {
     case event: SignedMessage[Write2AnsMessage] =>
       if (checkMex(event, recevedMessages))
         computeWrite2State(event.msg, recevedMessages :+ event.signerID)
   }
 
-  def readState(latestWriteC: Option[Certificate[GrantTS]], recevedMessages: List[String]): Receive = {
+  def readState(latestWriteC: Option[Certificate[GrantTS]], recevedMessages: List[Int]): Receive = {
     case event: SignedMessage[ReadAnsMessage] =>
       if (checkMex(event, recevedMessages))
         computeReadAnsMessage(event.msg, latestWriteC, recevedMessages)
   }
 
-  private def requireWrite(mex: RequireWriteMessage): Unit = {
-    val w1 = Write1Message(clientID, mex.objectID, getOperationNumber(mex.objectID), mex.writeOperationType)
+  private def requireWrite(mex: RequireWriteMessage[T]): Unit = {
+    val w1 = Write1Message(clientID, mex.objectID, getOperationNumber(mex.objectID), mex.op)
     sendSignMexToAll(w1)
     context.become(write1State(w1, List(), Option.empty, List(), List()))
   }
@@ -60,11 +61,11 @@ case class ClientActor(clientID: String, serverReferences: Map[String, ActorRef]
   }
 
   private def computeWrite1OkMessage(mex: Write1OKMessage,
-                                     w1: Write1Message,
+                                     w1: Write1Message[T],
                                      oKMessages: List[List[Write1OKMessage]],
                                      latestWriteC: Option[Certificate[GrantTS]],
                                      refusedMessages: List[Write1RefusedMessage],
-                                     recevedMessages: List[String]): Unit = {
+                                     recevedMessages: List[Int]): Unit = {
 
     @scala.annotation.tailrec
     def addNewMex(oldList: List[List[Write1OKMessage]], newList: List[List[Write1OKMessage]]): List[List[Write1OKMessage]] = oldList match {
@@ -108,11 +109,11 @@ case class ClientActor(clientID: String, serverReferences: Map[String, ActorRef]
   }
 
   private def computeWrite1RefusedMessage(mex: Write1RefusedMessage,
-                                          w1: Write1Message,
+                                          w1: Write1Message[T],
                                           oKMessages: List[List[Write1OKMessage]],
                                           latestWriteC: Option[Certificate[GrantTS]],
                                           refusedMessages: List[Write1RefusedMessage],
-                                          recevedMessages: List[String]): Unit = {
+                                          recevedMessages: List[Int]): Unit = {
     val newRefusedMessages = mex :: refusedMessages
     if (newRefusedMessages.size > QUORUM) {
       context.become(write1State(w1, List(), Option.empty, List(), List()))
@@ -128,10 +129,10 @@ case class ClientActor(clientID: String, serverReferences: Map[String, ActorRef]
   }
 
   private def computeWrite1OkMessageQuorumState(mex: Write1OKMessage,
-                                                w1: Write1Message,
+                                                w1: Write1Message[T],
                                                 writeC: Certificate[GrantTS],
                                                 oldWriteC: Certificate[GrantTS],
-                                                recevedMessages: List[String]): Unit = {
+                                                recevedMessages: List[Int]): Unit = {
     var newWriteC = writeC
     if (writeC.items.head == mex.grantTS) {
       newWriteC = writeC + mex.grantTS
@@ -146,7 +147,7 @@ case class ClientActor(clientID: String, serverReferences: Map[String, ActorRef]
     }
   }
 
-  private def computeWrite2State(mex: Write2AnsMessage, recevedMessages: List[String]): Unit = {
+  private def computeWrite2State(mex: Write2AnsMessage, recevedMessages: List[Int]): Unit = {
     if (recevedMessages.size > QUORUM) {
       context.become(receive)
       returnClient(mex.result)
@@ -157,7 +158,7 @@ case class ClientActor(clientID: String, serverReferences: Map[String, ActorRef]
 
   private def computeReadAnsMessage(mex: ReadAnsMessage,
                                     latestWriteC: Option[Certificate[GrantTS]],
-                                    recevedMessages: List[String]): Unit = {
+                                    recevedMessages: List[Int]): Unit = {
 
     val newLatestWriteC = setLatestCertificate(mex.currentC, latestWriteC)
     if (newLatestWriteC.nonEmpty && (newLatestWriteC.get.items.head > mex.currentC.items.head)) {
@@ -172,11 +173,11 @@ case class ClientActor(clientID: String, serverReferences: Map[String, ActorRef]
 
   }
 
-  private def sendSignMexToOne[T](serverID: String, message: T): Unit = {
+  private def sendSignMexToOne[T](serverID: Int, message: T): Unit = {
     sendToOne(serverID, Crypto.toSign(clientID, message))
   }
 
-  private def sendSignMexToAny[T](serverIDSet: List[String], mex: T): Unit = {
+  private def sendSignMexToAny[T](serverIDSet: List[Int], mex: T): Unit = {
     serverIDSet.foreach(sendSignMexToOne(_, mex))
   }
 
@@ -184,7 +185,7 @@ case class ClientActor(clientID: String, serverReferences: Map[String, ActorRef]
     sendToAll(Crypto.toSign(clientID, message))
   }
 
-  private def sendToOne[T](serverID: String, message: T): Unit = {
+  private def sendToOne[T](serverID: Int, message: T): Unit = {
     if (serverReferences.contains(serverID))
       serverReferences(serverID) ! message
   }
@@ -193,11 +194,13 @@ case class ClientActor(clientID: String, serverReferences: Map[String, ActorRef]
 
   private def getOperationNumber(objectID: String): Int = ???
 
-  private def checkMex[T](message: SignedMessage[T], recevedMessages: List[String]): Boolean = {
+  private def checkMex[T](message: SignedMessage[T], recevedMessages: List[Int]): Boolean = {
     Crypto.checkMex(message) && !recevedMessages.contains(message.signerID)
   }
 
-  private def returnClient(result: Any): Unit = ???
+  private def returnClient[T](result: T): Unit = {
+   sender() ! result
+  }
 
   private def setLatestCertificate(currentC: Certificate[GrantTS], latestWriteC: Option[Certificate[GrantTS]]): Option[Certificate[GrantTS]] = latestWriteC match {
     case o if o.isEmpty => Option.apply(currentC)
