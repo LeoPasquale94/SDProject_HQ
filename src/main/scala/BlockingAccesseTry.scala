@@ -1,4 +1,5 @@
 import akka.actor.{Actor, ActorSystem, Props}
+import akka.dispatch.Futures
 import akka.pattern.ask
 import akka.util.Timeout
 
@@ -12,10 +13,26 @@ object Try extends App{
 
  case class A() extends Actor {
 
+  private var nOp = 0
+  private var lastData = 0
+
   override def receive: Receive = {
    case _:Start =>{
     sleep(5000)
     context.sender() ! (Math.random() * 10). toInt
+   }
+   case msg(nOp, n) => {
+    if(nOp == this.nOp) {
+     sleep(5000)
+     lastData = n
+     context.sender() ! n
+     this.nOp += 1
+    }
+    else
+     if(nOp == this.nOp - 1)
+      context.sender() ! n
+     else
+      context.sender() ! Futures.failed(new wrongOpIndex)
    }
   }
 
@@ -24,9 +41,10 @@ object Try extends App{
 
  val system = ActorSystem()
  val aRef = system.actorOf(Props(A()))
+ implicit var timeout: Timeout = Timeout(4 seconds)
 
  //Modo - 1 - Bloccante
- implicit var timeout: Timeout = Timeout(4 seconds)
+ /*
  var notTimeOut = true
  while(notTimeOut){
   try{
@@ -38,15 +56,34 @@ object Try extends App{
   }catch {
    case _: TimeoutException => timeout = Timeout(10 seconds); println("tempo scaduto")
   }
- }
+ }*/
 
  //Modo - 2 - Non bloccante
- val future2 =  aRef ? Start()
+ case class msg(nOp: Int, op: Int)
  implicit val disp =  system.dispatcher
- println("Sono in attesa")
- future2.onComplete{
-  case Success(value) => println(value)
-  case Failure(exception) => println("non completata")
+
+ var redo = false
+
+ do{
+  redo = false
+  println("Sono in attesa")
+  val future2 =  aRef ? msg(0, 2)
+  /*future2.onComplete{
+   case Success(value) => println(value)
+   case Failure(exception) => println("errore")
+  }*/
+  try{
+   val value =  Await.result(future2, timeout.duration).asInstanceOf[Int]
+   println(value)
+  }catch {
+   case _: TimeoutException => redo = true; timeout = Timeout(5 seconds);println("tempo scaduto")
+  }
+ }while(redo)
+
+ println("fatto")
+
+ case class wrongOpIndex() extends Exception{
+
  }
- println("dopo")
+
 }
