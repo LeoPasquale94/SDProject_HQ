@@ -18,7 +18,7 @@ object Crypto {
 
   def toSign[T](idSigner: Int, mex: T): SignedMessage [T] = SignedMessage(idSigner, mex, sign(mex, searchKey(idSigner)))
 
-  def checkMex [T] (signedMessage: SignedMessage [T]):Boolean = sign(signedMessage.mex, searchKey(signedMessage.signerID)).deep == signedMessage.sign.deep
+  def checkMex [T] (signedMessage: SignedMessage [T]):Boolean = sign(signedMessage.msg, searchKey(signedMessage.signerID)).deep == signedMessage.sign.deep
 
   def sign [T] (mex: T, key: SecretKeySpec ): Array[Byte] = {
 

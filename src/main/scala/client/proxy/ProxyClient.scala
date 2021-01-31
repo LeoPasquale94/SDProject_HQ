@@ -25,8 +25,7 @@ object ProxyClient{
   private class ProxyClientActor extends ProxyClient(){
     //TODO inizializzare attore
     private val system = ActorSystem()
-    private val clientActor = ClientActor(???, ???)
-    private val clientActorRef = system.actorOf(Props(clientActor))
+    private val clientActorRef = system.actorOf(Props(ClientActor(???, ???)))
 
 
     //TODO inviare messaggio all'attore
