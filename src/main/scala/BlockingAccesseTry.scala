@@ -5,7 +5,6 @@ import akka.util.Timeout
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, TimeoutException}
-import scala.util.{Failure, Success}
 
 case class Start()
 
@@ -13,27 +12,26 @@ object Try extends App{
 
  case class A() extends Actor {
 
-  private var nOp = 0
-  private var lastData = 0
 
-  override def receive: Receive = {
+  override def receive: Receive = initState(0,0)
+
+  def initState(nOP: Int, lastData: Int ): Receive = {
    case _:Start =>{
     sleep(5000)
     context.sender() ! (Math.random() * 10). toInt
    }
-   case msg(nOp, n) => {
-    if(nOp == this.nOp) {
+   case msg(nOp, n) =>
+    if(nOp == nOP) {
      sleep(5000)
-     lastData = n
+     context.become(initState(nOP +1, n))
      context.sender() ! n
-     this.nOp += 1
     }
     else
-     if(nOp == this.nOp - 1)
+     if(nOp == nOP - 1)
       context.sender() ! n
      else
       context.sender() ! Futures.failed(new wrongOpIndex)
-   }
+
   }
 
   def sleep(time: Long) { Thread.sleep(time) }

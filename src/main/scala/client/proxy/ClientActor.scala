@@ -8,9 +8,12 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
 
   private val N_REPLICAS = serverReferences.size
   private val QUORUM = 2 / 3 * (N_REPLICAS - 1)
+  private var opHash: Int = 0
 
 
-  override def receive : Receive = {
+  override def receive : Receive = initState( 0)
+
+  def initState(opHash: Int):Receive = {
     case event: RequireWriteMessage[T] => requireWrite(event)
     case event: RequireReadMessage => requireRead(event)
   }
@@ -106,6 +109,7 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
     } else {
       context.become(write1State(w1, newOkMessages, newLatestWriteC, refusedMessages, recevedMessages))
     }
+
   }
 
   private def computeWrite1RefusedMessage(mex: Write1RefusedMessage,
