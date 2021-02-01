@@ -8,7 +8,6 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
 
   private val N_REPLICAS = serverReferences.size
   private val QUORUM = 2 / 3 * (N_REPLICAS - 1)
-  private var opHash: Int = 0
 
 
   override def receive : Receive = initState( 0)

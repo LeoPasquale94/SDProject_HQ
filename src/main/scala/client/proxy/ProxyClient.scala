@@ -1,7 +1,7 @@
 package client.proxy
 
 import akka.actor.{ActorSystem, Props}
-import messages.RequireWriteMessage
+import messages.{RequireReadMessage, RequireWriteMessage}
 import akka.pattern.ask
 import akka.util.Timeout
 
@@ -22,19 +22,22 @@ object ProxyClient{
 
   def apply(): ProxyClient = instance
 
+  implicit val timeout: Timeout = Timeout(5 seconds)
+
   private class ProxyClientActor extends ProxyClient(){
     //TODO inizializzare attore
     private val system = ActorSystem()
     private val clientActorRef = system.actorOf(Props(ClientActor(???, ???)))
 
-
     //TODO inviare messaggio all'attore
-    override def write[T](op: T => T, oid: String): T = {
-      implicit val timeout: Timeout = Timeout(5 seconds)
-      val future = clientActorRef ? RequireWriteMessage(oid, op)
+    override def write[T](op: T => T, oid: String): T = require(RequireWriteMessage(oid, op))
+
+    //TODO inviare il messaggio all'attore
+    override def read[T](oid: String): T = require(RequireReadMessage(oid))
+
+    private def require[T, H](message : H): T = {
+      val future = clientActorRef ? message
       Await.result(future, timeout.duration).asInstanceOf[T]
     }
-    //TODO inviare il messaggio all'attore
-    override def read[T](oid: String): T = ???
   }
 }
