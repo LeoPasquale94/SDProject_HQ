@@ -1,6 +1,7 @@
 package client.proxy
 
-import AuthenticationCertification.{Certificate, Crypto, GrantTS}
+import AuthenticationCertification.{Certificate, Crypto}
+import Client.proxy.{ReadStateVariable, Write1OkQuorumStateVariable, Write1StateVariable, Write2StateVariable}
 import akka.actor.{Actor, ActorRef}
 import messages._
 
@@ -13,202 +14,147 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
   override def receive : Receive = initState( 0)
 
   def initState(opHash: Int):Receive = {
-    case event: RequireWriteMessage[T] => requireWrite(event)
-    case event: RequireReadMessage => requireRead(event)
+    case event: RequireWriteMessage[T] => requireWrite(event, opHash + 1)
+    case event: RequireReadMessage => requireRead(event, opHash)
   }
 
-  def write1State(w1: Write1Message[T],
-                  oKMessages: List[List[Write1OKMessage]],
-                  latestWriteC: Option[Certificate[GrantTS]],
-                  refusedMessages: List[Write1RefusedMessage],
-                  recevedMessages: List[Int]): Receive = {
+  def write1State(stateVariables: Write1StateVariable[T]): Receive = {
     case event: SignedMessage[Write1OKMessage] =>
-      if (checkMex(event, recevedMessages))
-        computeWrite1OkMessage(event.msg, w1, oKMessages, latestWriteC, refusedMessages, recevedMessages :+ event.signerID)
+      if (checkMex(event, stateVariables.recevedMessages))
+        computeWrite1OkMessage(event.msg, stateVariables)
     case event: SignedMessage[Write1RefusedMessage] =>
-      if (checkMex(event, recevedMessages))
-        computeWrite1RefusedMessage(event.msg, w1, oKMessages, latestWriteC, refusedMessages, recevedMessages :+ event.signerID)
+    if (checkMex(event, stateVariables.recevedMessages))
+        computeWrite1RefusedMessage(event.msg, stateVariables)
     case event: SignedMessage[Write2AnsMessage] =>
-      if (checkMex(event, recevedMessages))
-        otherClientIsDoingThisWrite(event.msg)
+      if (checkMex(event, stateVariables.recevedMessages))
+        otherClientIsDoingThisWrite(event.msg, stateVariables)
   }
 
-  def write1OkQuorumState(w1: Write1Message[T], writeC: Certificate[GrantTS], latestWriteC: Certificate[GrantTS], recevedMessages: List[Int]): Receive = {
+  def write1OkQuorumState(stateVariables: Write1OkQuorumStateVariable[T]): Receive = {
     case event: SignedMessage[Write1OKMessage] =>
-      if (checkMex(event, recevedMessages))
-        computeWrite1OkMessageQuorumState(event.msg, w1, writeC, latestWriteC, recevedMessages :+ event.signerID)
+      if (checkMex(event, stateVariables.recevedMessages))
+       computeWrite1OkMessageQuorumState(event.msg, stateVariables )
   }
 
-  def write2State(recevedMessages: List[Int]): Receive = {
+  def write2State(stateVariables: Write2StateVariable): Receive = {
     case event: SignedMessage[Write2AnsMessage] =>
-      if (checkMex(event, recevedMessages))
-        computeWrite2State(event.msg, recevedMessages :+ event.signerID)
+      if (checkMex(event, stateVariables.recevedMessages))
+        computeWrite2State(event.msg, stateVariables.addRecevedMessages(event.msg.replicaID))
   }
 
-  def readState(latestWriteC: Option[Certificate[GrantTS]], recevedMessages: List[Int]): Receive = {
+  def readState(stateVariables:ReadStateVariable): Receive = {
     case event: SignedMessage[ReadAnsMessage] =>
-      if (checkMex(event, recevedMessages))
-        computeReadAnsMessage(event.msg, latestWriteC, recevedMessages)
+      if (checkMex(event, stateVariables.recevedMessages))
+        computeReadAnsMessage(event.msg, stateVariables)
   }
 
-  private def requireWrite(mex: RequireWriteMessage[T]): Unit = {
-    val w1 = Write1Message(clientID, mex.objectID, getOperationNumber(mex.objectID), mex.op)
+  private def requireWrite(msg: RequireWriteMessage[T], opHash: Int): Unit = {
+    val w1 = Write1Message(clientID, msg.objectID, opHash, msg.op)
     sendSignMexToAll(w1)
-    context.become(write1State(w1, List(), Option.empty, List(), List()))
+    context.become(write1State(Write1StateVariable(w1, List(),Option.empty, List(), List(), opHash)))
   }
 
-  private def requireRead(mex: RequireReadMessage): Unit = {
-    sendSignMexToAll(ReadMessage(clientID, mex.objectID))
-    context.become(readState(Option.empty, List()))
+  private def requireRead(msg: RequireReadMessage, opHash: Int): Unit = {
+    sendSignMexToAll(ReadMessage(clientID, msg.objectID))
+    context.become(readState(ReadStateVariable(Option.empty, List(), opHash)))
   }
 
-  private def computeWrite1OkMessage(mex: Write1OKMessage,
-                                     w1: Write1Message[T],
-                                     oKMessages: List[List[Write1OKMessage]],
-                                     latestWriteC: Option[Certificate[GrantTS]],
-                                     refusedMessages: List[Write1RefusedMessage],
-                                     recevedMessages: List[Int]): Unit = {
+  private def computeWrite1OkMessage(msg: Write1OKMessage, stateVariables: Write1StateVariable[T]): Unit = {
+    val updateStateVariable = stateVariables.update(msg)
+    val eventualQuorum = updateStateVariable.areThereMoreThenQuorumEqualOKMsg(QUORUM)
 
-    @scala.annotation.tailrec
-    def addNewMex(oldList: List[List[Write1OKMessage]], newList: List[List[Write1OKMessage]]): List[List[Write1OKMessage]] = oldList match {
-      case Nil => newList :+ List(mex)
-      case (h :: t1) :: t2 if h == mex => newList ++ (((h :: t1) :+ mex) :: t2)
-      case h :: t => addNewMex(t, newList :+ h)
-    }
-
-    @scala.annotation.tailrec
-    def areThereMoreThenQuorumEqualOKMex(l: List[List[Write1OKMessage]]): Option[List[Write1OKMessage]] = l match {
-      case Nil => Option.empty
-      case h :: _ if h.size > QUORUM => Option.apply(h)
-      case _ :: t => areThereMoreThenQuorumEqualOKMex(t)
-    }
-
-    val newLatestWriteC = setLatestCertificate(mex.currentC, latestWriteC)
-    val newOkMessages = addNewMex(oKMessages, List())
-    val eventualQuorum = areThereMoreThenQuorumEqualOKMex(newOkMessages)
-
-    if (eventualQuorum.nonEmpty) {
+    if(eventualQuorum.nonEmpty){
       val writeC = Certificate(eventualQuorum.get.map(_.grantTS))
-      context.become(write1OkQuorumState(w1, writeC, mex.currentC, recevedMessages))
-      if (newOkMessages.size > 1) {
-        val replicasNotUpdate = newOkMessages
-          .flatten
-          .diff(eventualQuorum.get)
-          .filter(_.grantTS.areTSOrVSNotEqual(mex.grantTS))
-          .map(_.grantTS.replicaID)
-        sendSignMexToAny(replicasNotUpdate, WriteBackWriteMessage(mex.currentC, w1)) //Controllare per sicurezza
-      }
-    } else if (newLatestWriteC.nonEmpty && (newLatestWriteC.get.items.head > mex.currentC.items.head)) {
-      sendToOne(mex.grantTS.replicaID, WriteBackWriteMessage(newLatestWriteC.get, w1))
+      context.become(write1OkQuorumState(updateStateVariable.createWrite1OkQuorumStateVariable(writeC)))
+      val replicasNotUpdate = updateStateVariable.getReplicasIDNotUpdate(eventualQuorum.get)
+      sendSignMexToAny(replicasNotUpdate, WriteBackWriteMessage(msg.currentC, updateStateVariable.w1))
+    }else if(updateStateVariable.isNotReplicaUpdatedOnWriteOperation(msg.currentC))
+      sendToOne(msg.grantTS.replicaID, WriteBackWriteMessage(msg.currentC, updateStateVariable.w1))
+    else if (updateStateVariable.getNumberDifferentWrite1OkMsg > QUORUM){
+      context.become(write1State(updateStateVariable.resetState))
+    }else
+      context.become(write1State(updateStateVariable))
+  }
 
-    } else if (newOkMessages.size > QUORUM) {
-      context.become(write1State(w1, List(), Option.empty, List(), List()))
-      val conflictC = Certificate(newOkMessages.flatten)
-      sendSignMexToAll(ResolveMessage(conflictC, w1))
+  private def computeWrite1RefusedMessage(msg: Write1RefusedMessage, stateVariables: Write1StateVariable[T]): Unit = {
+    val updateStatVariable = stateVariables.update(msg)
+    if (updateStatVariable.getNumberRefusedMsg > QUORUM) {
+      context.become(write1State(updateStatVariable.resetState))
+      sendSignMexToAll(WriteBackWriteMessage(msg.currentC,stateVariables.w1))
     } else {
-      context.become(write1State(w1, newOkMessages, newLatestWriteC, refusedMessages, recevedMessages))
+      context.become(write1State(updateStatVariable))
     }
-
   }
 
-  private def computeWrite1RefusedMessage(mex: Write1RefusedMessage,
-                                          w1: Write1Message[T],
-                                          oKMessages: List[List[Write1OKMessage]],
-                                          latestWriteC: Option[Certificate[GrantTS]],
-                                          refusedMessages: List[Write1RefusedMessage],
-                                          recevedMessages: List[Int]): Unit = {
-    val newRefusedMessages = mex :: refusedMessages
-    if (newRefusedMessages.size > QUORUM) {
-      context.become(write1State(w1, List(), Option.empty, List(), List()))
-      sendSignMexToAll(WriteBackWriteMessage(mex.currentC, w1))
+  private def otherClientIsDoingThisWrite(msg: Write2AnsMessage, stateVariables: Write1StateVariable[T]): Unit = {
+    context.become(write2State(stateVariables.createWrite2StateVariable(msg.currentC)))
+    sendSignMexToAll(Write2Message(msg.currentC))
+  }
+
+  private def computeWrite1OkMessageQuorumState(msg: Write1OKMessage, stateVariables: Write1OkQuorumStateVariable[T]): Unit = {
+    var updateStatVariable = stateVariables
+    if (stateVariables.isGrantTSSameAsOther(msg.grantTS)) {
+      updateStatVariable = stateVariables.addGrantTS(msg.grantTS)
+      context.become(write1OkQuorumState(updateStatVariable))
     } else {
-      context.become(write1State(w1, oKMessages, latestWriteC, newRefusedMessages, recevedMessages))
+      sendSignMexToOne(msg.grantTS.replicaID, WriteBackWriteMessage(stateVariables.latestWriteC, stateVariables.w1))
+    }
+    if (stateVariables.getNumberRecevedMsg == N_REPLICAS) {
+      context.become(write2State(updateStatVariable.createWrite2StateVariable))
+      sendSignMexToAll(Write2Message(updateStatVariable.writeC))
     }
   }
 
-  private def otherClientIsDoingThisWrite(mex: Write2AnsMessage): Unit = {
-    context.become(write2State(List()))
-    sendSignMexToAll(Write2Message(mex.currentC))
-  }
-
-  private def computeWrite1OkMessageQuorumState(mex: Write1OKMessage,
-                                                w1: Write1Message[T],
-                                                writeC: Certificate[GrantTS],
-                                                oldWriteC: Certificate[GrantTS],
-                                                recevedMessages: List[Int]): Unit = {
-    var newWriteC = writeC
-    if (writeC.items.head == mex.grantTS) {
-      newWriteC = writeC + mex.grantTS
-      context.become(write1OkQuorumState(w1, writeC + mex.grantTS, oldWriteC, recevedMessages))
+  private def computeWrite2State(msg: Write2AnsMessage, stateVariables: Write2StateVariable): Unit = {
+    if (stateVariables.getNumerRecevedMsg > QUORUM) {
+      context.become(initState(stateVariables.opHash))
+      returnClient(msg.result)
     } else {
-      sendSignMexToOne(mex.grantTS.replicaID, WriteBackWriteMessage(oldWriteC, w1))
-    }
-
-    if (recevedMessages.size == N_REPLICAS) {
-      context.become(write2State(List()))
-      sendSignMexToAll(Write2Message(newWriteC))
+      context.become(write2State(stateVariables))
     }
   }
 
-  private def computeWrite2State(mex: Write2AnsMessage, recevedMessages: List[Int]): Unit = {
-    if (recevedMessages.size > QUORUM) {
+  private def computeReadAnsMessage(msg: ReadAnsMessage, stateVariables:ReadStateVariable): Unit = {
+
+    val updateStateVariable = stateVariables.update(msg)
+    if (updateStateVariable.isNotReplicaUpdatedOnWriteOperation(msg.currentC)) {
+      val latestWriteC = updateStateVariable.latestWriteC.get
+      sendToOne(msg.replicaID, WriteBackReadMessage(latestWriteC, clientID, latestWriteC.items.head.objectID))
+    }
+    if (stateVariables.getNumerRecevedMsg > QUORUM) {
       context.become(receive)
-      returnClient(mex.result)
+      returnClient(msg.result)
     } else {
-      context.become(write2State(recevedMessages))
-    }
-  }
-
-  private def computeReadAnsMessage(mex: ReadAnsMessage,
-                                    latestWriteC: Option[Certificate[GrantTS]],
-                                    recevedMessages: List[Int]): Unit = {
-
-    val newLatestWriteC = setLatestCertificate(mex.currentC, latestWriteC)
-    if (newLatestWriteC.nonEmpty && (newLatestWriteC.get.items.head > mex.currentC.items.head)) {
-      sendToOne(mex.replicaID, WriteBackReadMessage(newLatestWriteC.get, clientID, newLatestWriteC.get.items.head.objectID, ???))
-    }
-    if (recevedMessages.size > QUORUM) {
-      context.become(receive)
-      returnClient(mex.result)
-    } else {
-      context.become(readState(latestWriteC, recevedMessages))
+      context.become(readState(stateVariables))
     }
 
   }
 
-  private def sendSignMexToOne[T](serverID: Int, message: T): Unit = {
+  private def sendSignMexToOne[H](serverID: Int, message: H): Unit = {
     sendToOne(serverID, Crypto.toSign(clientID, message))
   }
 
-  private def sendSignMexToAny[T](serverIDSet: List[Int], mex: T): Unit = {
+  private def sendSignMexToAny[H](serverIDSet: List[Int], mex: H): Unit = {
     serverIDSet.foreach(sendSignMexToOne(_, mex))
   }
 
-  private def sendSignMexToAll[T](message: T): Unit = {
+  private def sendSignMexToAll[H](message: H): Unit = {
     sendToAll(Crypto.toSign(clientID, message))
   }
 
-  private def sendToOne[T](serverID: Int, message: T): Unit = {
+  private def sendToOne[H](serverID: Int, message: H): Unit = {
     if (serverReferences.contains(serverID))
       serverReferences(serverID) ! message
   }
 
-  private def sendToAll[T](message: T): Unit = serverReferences.foreach(t => t._2 ! message)
+  private def sendToAll[H](message: H): Unit = serverReferences.foreach(t => t._2 ! message)
 
-  private def getOperationNumber(objectID: String): Int = ???
-
-  private def checkMex[T](message: SignedMessage[T], recevedMessages: List[Int]): Boolean = {
+  private def checkMex[H](message: SignedMessage[H], recevedMessages: List[Int]): Boolean = {
     Crypto.checkMex(message) && !recevedMessages.contains(message.signerID)
   }
 
   private def returnClient[T](result: T): Unit = {
    sender() ! result
-  }
-
-  private def setLatestCertificate(currentC: Certificate[GrantTS], latestWriteC: Option[Certificate[GrantTS]]): Option[Certificate[GrantTS]] = latestWriteC match {
-    case o if o.isEmpty => Option.apply(currentC)
-    case o if o.get.items.head > currentC.items.head => o
-    case _ => Option.apply(currentC)
   }
 
 }

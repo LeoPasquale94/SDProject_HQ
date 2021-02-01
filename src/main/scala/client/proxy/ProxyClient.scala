@@ -45,6 +45,7 @@ object ProxyClient{
 
     private def require[T, H](message : H): T = {
       var redo = false
+      var op = Option.empty
 
       do{
         try {

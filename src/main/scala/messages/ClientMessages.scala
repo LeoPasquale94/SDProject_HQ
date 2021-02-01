@@ -1,7 +1,6 @@
 package messages
 
 import AuthenticationCertification.{Certificate, GrantTS}
-import Utils.WriteOperationType.WriteOperationType
 
 //TODO codice del messaggio in message
 case class RequireWriteMessage[T](objectID: Int, op: T => T, nOp: Int)
@@ -18,7 +17,7 @@ case class ResolveMessage[T](conflictC: Certificate[Write1OKMessage], write1Mess
 
 case class WriteBackWriteMessage[T](writeC: Certificate[GrantTS], write1Message: Write1Message[T])
 
-case class WriteBackReadMessage(writeC: Certificate[GrantTS], clietID: Int,
-                                objectID: Int, op: WriteOperationType, nonce: Double = Math.random())
+case class WriteBackReadMessage[T](writeC: Certificate[GrantTS], clietID: Int,
+                                objectID: Int, nonce: Double = Math.random())
 
 
