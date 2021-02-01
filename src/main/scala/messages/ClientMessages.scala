@@ -4,9 +4,9 @@ import AuthenticationCertification.{Certificate, GrantTS}
 import Utils.WriteOperationType.WriteOperationType
 
 //TODO codice del messaggio in message
-case class RequireWriteMessage[T](objectID: String, op: T => T)
+case class RequireWriteMessage[T](objectID: String, op: T => T, nOp: Int)
 
-case class RequireReadMessage(objectID: String)
+case class RequireReadMessage(objectID: String, nOp: Int)
 
 case class Write1Message[T](clientID: Int, objectID: String, numberOperation: Int,  op: T => T)
 

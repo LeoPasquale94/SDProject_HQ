@@ -1,3 +1,5 @@
+package tentativi
+
 import akka.actor.{Actor, ActorSystem, Props}
 import akka.dispatch.Futures
 import akka.pattern.ask
@@ -11,7 +13,6 @@ case class Start()
 object Try extends App{
 
  case class A() extends Actor {
-
 
   override def receive: Receive = initState(0,0)
 
@@ -31,7 +32,6 @@ object Try extends App{
       context.sender() ! n
      else
       context.sender() ! Futures.failed(new wrongOpIndex)
-
   }
 
   def sleep(time: Long) { Thread.sleep(time) }
@@ -46,7 +46,7 @@ object Try extends App{
  var notTimeOut = true
  while(notTimeOut){
   try{
-   val future = aRef ? Start()
+   val future = aRef ? tentativi.Start()
    println("Sono in attesa")
    val value =  Await.result(future, timeout.duration).asInstanceOf[Int]
    println("Ecco il risultato: " + value)
@@ -80,8 +80,6 @@ object Try extends App{
 
  println("fatto")
 
- case class wrongOpIndex() extends Exception{
-
- }
+ case class wrongOpIndex() extends Exception{}
 
 }
