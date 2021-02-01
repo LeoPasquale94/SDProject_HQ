@@ -9,7 +9,7 @@ case class DummyActor() extends Actor{
   override def receive: Receive = initState(0,0)
 
   private def initState(nOp: Int, lastData: Int ): Receive = {
-    case msg: RequireReadMessage => exec(_, lastData, nOp, msg.nOp)
+    case msg: RequireReadMessage => exec(x => x, lastData, nOp, msg.nOp)
     case msg: RequireWriteMessage[Int] => exec(msg.op, lastData, nOp, msg.nOp)
     case _ => context.sender() ! new WrongOpIndexException //TODO aggiungere eccezione
   }
