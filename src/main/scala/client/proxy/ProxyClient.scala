@@ -39,11 +39,11 @@ object ProxyClient{
      */
     private var opCounter = 0
 
-    override def write[T](op: T => T, oid: Int): T = require(RequireWriteMessage(oid, op, opCounter))
+    override def write[T](op: T => T, oid: Int): T = require(RequireWriteMessage(oid, op, opCounter)).asInstanceOf[T]
 
-    override def read[T](oid: Int): T = require(RequireReadMessage(oid, opCounter))
+    override def read[T](oid: Int): T = require(RequireReadMessage(oid, opCounter)).asInstanceOf[T]
 
-    private def require[T, H](message : H): T = {
+    private def require[T, H](message : H): Any = {
       var redo = false
 
       do{
@@ -56,12 +56,12 @@ object ProxyClient{
               case _ => throw WrongOpIndexException()
             }
         } catch {
-            case _: TimeoutException =>
+            case _/*: TimeoutException*/ =>
               redo = true
               println("tempo scaduto")
-            case _: WrongOpIndexException =>
+            /*case _: WrongOpIndexException =>
               println("da sincronizzare")
-            //TODO protocollo di sincronizzazione
+            //TODO protocollo di sincronizzazione*/
         }
       }while(redo)
     }

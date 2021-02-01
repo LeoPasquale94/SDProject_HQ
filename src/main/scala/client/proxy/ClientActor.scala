@@ -1,5 +1,5 @@
 package client.proxy
-
+/*
 import AuthenticationCertification.{Certificate, Crypto, GrantTS}
 import akka.actor.{Actor, ActorRef}
 import messages._
@@ -211,4 +211,4 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
     case _ => Option.apply(currentC)
   }
 
-}
+}*/
