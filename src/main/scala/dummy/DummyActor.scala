@@ -1,9 +1,9 @@
 package dummy
 
 import akka.actor.Actor
-import akka.dispatch.Futures
 import client.proxy.exception.WrongOpIndexException
 import messages.{RequireReadMessage, RequireWriteMessage}
+
 
 case class DummyActor() extends Actor{
   override def receive: Receive = initState(0,0)

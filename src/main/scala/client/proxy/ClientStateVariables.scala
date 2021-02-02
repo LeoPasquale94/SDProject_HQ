@@ -100,6 +100,7 @@ case class Write2StateVariable(writeC: Certificate[GrantTS], recevedMessages: Li
   def getNumerRecevedMsg: Int = recevedMessages.size
 }
 
+//ToDo Ci sono dei metodi uguali alle case class precendenti, trovare un modo per eliminare i metodi ridonsanti
 case class ReadStateVariable(latestWriteC: Option[Certificate[GrantTS]],  recevedMessages: List[Int], opHash: Int){
   def setLatestWriteC(writeC: Certificate[GrantTS]): ReadStateVariable ={
     val newLatestWriteC = latestWriteC match {
