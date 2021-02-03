@@ -1,11 +1,11 @@
 package client.proxy
 
-import Client.proxy.RequestMessageCreator
 import akka.actor.{ActorSystem, Props}
 import akka.pattern.ask
 import akka.util.Timeout
 import client.proxy.exception.WrongOpIndexException
 import dummy.DummyActor
+import messages.{RequireReadMessage, RequireWriteMessage}
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -39,11 +39,9 @@ object ProxyClient{
      */
     private var opCounter = 0
 
-    //ToDo la classe statica RequestMessageCreator permette di ordinare le richieste utente poichè numera le richieste utente.
+    override def write[T](op: T => T, oid: Int): T = require(RequireWriteMessage(oid, op, oid)).asInstanceOf[T]
 
-    override def write[T](op: T => T, oid: Int): T = require(RequestMessageCreator.createRequireWriteMessage(op,oid)).asInstanceOf[T]
-
-    override def read[T](oid: Int): T = require(RequestMessageCreator.createRequireReadMessage(oid)).asInstanceOf[T]
+    override def read[T](oid: Int): T = require(RequireReadMessage(oid, opCounter)).asInstanceOf[T]
 
     private def require[T, H](message : H): Any = {
       var redo = false
