@@ -1,40 +1,39 @@
 package dummy
 
-import akka.actor.Actor
+import akka.actor.{Actor, ActorRef}
 import client.proxy.exception.WrongOpIndexException
 import messages.{RequireReadMessage, RequireWriteMessage}
 
+case class DummyActor(replicaRef: ActorRef) extends Actor{
+  override def receive: Receive = initState(0,Option.empty, context.sender())
 
-case class DummyActor() extends Actor{
-
-  case class ProxyClientStatus(nOp: Int = 0, lastResult: Int = 0, complete: Boolean = false)
-
-  override def receive: Receive = waitRequest(ProxyClientStatus())
-
-  private def waitRequest(status: ProxyClientStatus, client: Option[Actor] = Option.empty): Receive = {
-    case msg: RequireReadMessage => exec(x => x, status, msg.nOp)
-    case msg: RequireWriteMessage[Int] => exec(msg.op, lastData, nOp, msg.nOp)
-    case msg: Response[Int] => response(msg.getValue())
+  private def initState(nOp: Int, lastData: Option[Int], senderRef: ActorRef ): Receive = {
+    case msg: RequireReadMessage => exec( nOp, lastData, msg.nOp, msg)
+    case msg: RequireWriteMessage[Int] => exec(nOp, lastData, msg.nOp, msg)
+    case msg: Answer => answer(nOp, msg, senderRef)
     case _ => context.sender() ! new WrongOpIndexException //TODO aggiungere eccezione
   }
 
-  private def sleep(time: Long) { Thread.sleep(time) }
-
-  private def response(nOp: Int, value: Int): Unit = {
-    context
-  }
-
-  private def exec(op: Int => Int, n: Int, nOp: Int, opN: Int): Unit = {
+  private def exec[T](nOp: Int, n: Option[Int], opN: Int, msg: T): Unit = {
     if(opN == nOp) {
-      //sleep(5000)
-      context.become(initState(nOp + 1, op(n), context.sender()))
-      context.sender() ! op(n)
-
+      replicaRef ! msg
+      println("Richiesta inviata alla replica")
+      context.become(initState(nOp + 1, Option.empty, context.sender()))
     }
     else
       if(opN == nOp - 1)
-        context.sender() ! n
+        if (n.nonEmpty) {
+          println("Risulato disponibile")
+          context.sender() ! n.get
+        }else {
+          println("Risultato non disponibile")
+        }
       else
         context.sender() ! new WrongOpIndexException
+  }
+
+  private def answer(nOp: Int, msg: Answer, senderRef: ActorRef ): Unit = {
+    senderRef ! msg.data
+    context.become(initState(nOp, Option.apply(msg.data), senderRef))
   }
 }
