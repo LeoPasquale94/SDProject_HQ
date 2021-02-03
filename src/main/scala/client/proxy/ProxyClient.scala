@@ -4,7 +4,7 @@ import akka.actor.{ActorSystem, Props}
 import akka.pattern.ask
 import akka.util.Timeout
 import client.proxy.exception.WrongOpIndexException
-import dummy.DummyActor
+import dummy.{DummyActor, DummyReplica}
 import messages.{RequireReadMessage, RequireWriteMessage}
 
 import scala.concurrent.Await
@@ -27,9 +27,11 @@ object ProxyClient{
    */
   private class ProxyClientActor extends ProxyClient(){
     //TODO inizializzare attore da finire
-    private implicit val timeout: Timeout = Timeout(5 seconds)
+    private implicit val timeout: Timeout = Timeout(10 seconds)
     private val system = ActorSystem()
-    private val clientActorRef = system.actorOf(Props[DummyActor])
+    private val replicaRef = system.actorOf(Props[DummyReplica])
+    private val clientActorRef = system.actorOf(Props(DummyActor(replicaRef)))
+
     //private val clientActorRef = system.actorOf(Props(ClientActor(???, ???)))
     /*
     TODO
@@ -39,7 +41,7 @@ object ProxyClient{
      */
     private var opCounter = 0
 
-    override def write[T](op: T => T, oid: Int): T = require(RequireWriteMessage(oid, op, oid)).asInstanceOf[T]
+    override def write[T](op: T => T, oid: Int): T = require(RequireWriteMessage(oid, op, opCounter)).asInstanceOf[T]
 
     override def read[T](oid: Int): T = require(RequireReadMessage(oid, opCounter)).asInstanceOf[T]
 
