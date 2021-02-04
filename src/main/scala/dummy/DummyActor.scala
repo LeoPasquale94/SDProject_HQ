@@ -4,7 +4,6 @@ import akka.actor.{Actor, ActorRef}
 import client.proxy.exception.WrongOpIndexException
 import messages.{RequireReadMessage, RequireWriteMessage}
 
-
 case class DummyActor(replicaRef: ActorRef) extends Actor{
   override def receive: Receive = initState(0,Option.empty, context.sender())
 
@@ -15,8 +14,8 @@ case class DummyActor(replicaRef: ActorRef) extends Actor{
     case _ => context.sender() ! new WrongOpIndexException //TODO aggiungere eccezione
   }
 
-
   private def exec[M,T](nOp: Int, n: Option[T], opN: Int, msg: M): Unit = {
+
     if(opN == nOp) {
       replicaRef ! msg
       println("Richiesta inviata alla replica")
