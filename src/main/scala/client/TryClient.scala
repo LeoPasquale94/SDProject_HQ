@@ -7,5 +7,11 @@ object TryClient extends App {
 
   println("Risultato Write: " + proxy.write[Int](_ + 2, 123))
 
-  println("RisultatoRead: " + proxy.read[Int](123))
+  println("Risultato Write: " + proxy.write[String](_ + "Ciao", 321))
+
+  println("Risultato Read: " + proxy.read[Int](123))
+
+  println("Risultato Read: " + proxy.read[String](321))
+
+
 }
