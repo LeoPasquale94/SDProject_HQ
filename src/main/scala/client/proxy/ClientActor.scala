@@ -70,7 +70,7 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
       sendSignMexToAny(replicasNotUpdate, WriteBackWriteMessage(msg.currentC, updateStateVariable.w1))
     }else if(updateStateVariable.isNotReplicaUpdatedOnWriteOperation(msg.currentC))
       sendToOne(msg.grantTS.replicaID, WriteBackWriteMessage(msg.currentC, updateStateVariable.w1))
-    else if (updateStateVariable.getNumberDifferentWrite1OkMsg > QUORUM){
+    else if (updateStateVariable.getSizeDifferentWrite1OkMsg > QUORUM){
       context.become(write1State(updateStateVariable.resetState))
     }else
       context.become(write1State(updateStateVariable))
@@ -78,7 +78,7 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
 
   private def computeWrite1RefusedMessage(msg: Write1RefusedMessage, stateVariables: Write1StateVariable[T]): Unit = {
     val updateStatVariable = stateVariables.update(msg)
-    if (updateStatVariable.getNumberRefusedMsg > QUORUM) {
+    if (updateStatVariable.getSizeRefusedMsg > QUORUM) {
       context.become(write1State(updateStatVariable.resetState))
       sendSignMexToAll(WriteBackWriteMessage(msg.currentC,stateVariables.w1))
     } else {
@@ -99,14 +99,14 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
     } else {
       sendSignMexToOne(msg.grantTS.replicaID, WriteBackWriteMessage(stateVariables.latestWriteC, stateVariables.w1))
     }
-    if (stateVariables.getNumberRecevedMsg == N_REPLICAS) {
+    if (stateVariables.getSizeRecevedMessages == N_REPLICAS) {
       context.become(write2State(updateStatVariable.createWrite2StateVariable))
       sendSignMexToAll(Write2Message(updateStatVariable.writeC))
     }
   }
 
   private def computeWrite2State(msg: Write2AnsMessage, stateVariables: Write2StateVariable): Unit = {
-    if (stateVariables.getNumerRecevedMsg > QUORUM) {
+    if (stateVariables.getSizeRecevedMessages > QUORUM) {
       context.become(initState(stateVariables.opHash))
       returnClient(msg.result)
     } else {
@@ -121,7 +121,7 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
       val latestWriteC = updateStateVariable.latestWriteC.get
       sendToOne(msg.replicaID, WriteBackReadMessage(latestWriteC, clientID, latestWriteC.items.head.objectID))
     }
-    if (stateVariables.getNumerRecevedMsg > QUORUM) {
+    if (stateVariables.getSizeRecevedMessages > QUORUM) {
       context.become(receive)
       returnClient(msg.result)
     } else {
