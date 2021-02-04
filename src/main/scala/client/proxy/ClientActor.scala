@@ -1,7 +1,6 @@
 package client.proxy
 
 import AuthenticationCertification.{Certificate, Crypto}
-import Client.proxy.{ReadStateVariable, Write1OkQuorumStateVariable, Write1StateVariable, Write2StateVariable}
 import akka.actor.{Actor, ActorRef}
 import messages._
 

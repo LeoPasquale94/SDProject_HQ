@@ -1,4 +1,4 @@
-package Client.proxy
+package client.proxy
 
 import AuthenticationCertification.{Certificate, GrantTS}
 import akka.actor.ActorRef
