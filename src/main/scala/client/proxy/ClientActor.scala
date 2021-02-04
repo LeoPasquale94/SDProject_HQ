@@ -2,6 +2,7 @@ package client.proxy
 
 import AuthenticationCertification.{Certificate, Crypto}
 import akka.actor.{Actor, ActorRef}
+import client.proxy.exception.WrongOpIndexException
 import messages._
 
 case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) extends Actor {
@@ -10,11 +11,10 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
   private val QUORUM = 2 / 3 * (N_REPLICAS - 1)
 
 
-  override def receive : Receive = initState( 0)
+  override def receive : Receive = initState(0, Option.empty)
 
-  def initState(opHash: Int):Receive = {
-    case event: RequireWriteMessage[T] => requireWrite(event, opHash + 1)
-    case event: RequireReadMessage => requireRead(event, opHash)
+  def initState(opHash: Int, lastData: Option[Any]):Receive = {
+    case event: RequireMessage => require(event, opHash, lastData)
   }
 
   def write1State(stateVariables: Write1StateVariable[T]): Receive = {
@@ -45,6 +45,21 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
     case event: SignedMessage[ReadAnsMessage] =>
       if (checkMex(event, stateVariables.recevedMessages))
         computeReadAnsMessage(event.msg, stateVariables)
+  }
+
+  private def require(msg: RequireMessage, opHash: Int, lastData: Option[Any]): Unit =  {
+    if(msg.nOp == opHash) {
+      msg match {
+        case msg: RequireWriteMessage[T] => requireWrite(msg, opHash + 1)
+        case msg: RequireReadMessage => requireRead(msg, opHash + 1)
+      }
+    }
+    else
+      if(msg.nOp == opHash - 1)
+        if (lastData.nonEmpty)
+          context.sender() !lastData.get
+      else
+        context.sender() ! new WrongOpIndexException
   }
 
   private def requireWrite(msg: RequireWriteMessage[T], opHash: Int): Unit = {
@@ -106,7 +121,7 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
 
   private def computeWrite2State(msg: Write2AnsMessage, stateVariables: Write2StateVariable): Unit = {
     if (stateVariables.getSizeRecevedMessages > QUORUM) {
-      context.become(initState(stateVariables.opHash))
+      context.become(initState(stateVariables.opHash, Option.apply(msg.result)))
       stateVariables ! msg.result
     } else {
       context.become(write2State(stateVariables))
@@ -121,7 +136,7 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
       sendToOne(msg.replicaID, WriteBackReadMessage(latestWriteC, clientID, latestWriteC.items.head.objectID))
     }
     if (stateVariables.getSizeRecevedMessages > QUORUM) {
-      context.become(receive)
+      context.become(initState(stateVariables.opHash, Option.apply(msg.result)))
       stateVariables ! msg.result
     } else {
       context.become(readState(stateVariables))

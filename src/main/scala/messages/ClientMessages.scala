@@ -3,9 +3,12 @@ package messages
 import AuthenticationCertification.{Certificate, GrantTS}
 
 //TODO codice del messaggio in message
-case class RequireWriteMessage[T](objectID: Int, op: T => T, nOp: Int)
+trait RequireMessage{
+  def nOp: Int
+}
+case class RequireWriteMessage[T](objectID: Int, op: T => T, nOp: Int) extends RequireMessage
 
-case class RequireReadMessage(objectID: Int, nOp: Int)
+case class RequireReadMessage(objectID: Int, nOp: Int) extends RequireMessage
 
 case class Write1Message[T](clientID: Int, objectID: Int, numberOperation: Int,  op: T => T)
 
