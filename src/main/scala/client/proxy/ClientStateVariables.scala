@@ -1,6 +1,7 @@
 package Client.proxy
 
 import AuthenticationCertification.{Certificate, GrantTS}
+import akka.actor.ActorRef
 import messages.{ReadAnsMessage, Write1Message, Write1OKMessage, Write1RefusedMessage}
 
 trait ManagerLatestWriteC {
@@ -11,11 +12,13 @@ trait ManagerLatestWriteC {
     }
 }
 
-case class StateVariables(recevedMessages: List[Int], opHash: Int){
+case class StateVariables(recevedMessages: List[Int], opHash: Int, clientRef: ActorRef){
 
   def addRecevedMsg(replicaID: Int): List[Int] = recevedMessages :+ replicaID
 
   def getSizeRecevedMessages: Int = recevedMessages.size
+
+  def ![T](msg : T): Unit = clientRef ! msg
 
 }
 
@@ -24,7 +27,9 @@ case class Write1StateVariable[T](w1: Write1Message[T],
                                   latestWriteC: Option[Certificate[GrantTS]],
                                   refusedMessages: List[Write1RefusedMessage],
                                   override val recevedMessages: List[Int],
-                                  override val opHash: Int) extends  StateVariables(recevedMessages, opHash) with ManagerLatestWriteC {
+                                  override val opHash: Int,
+                                  override val clientRef: ActorRef)
+  extends StateVariables(recevedMessages, opHash, clientRef) with ManagerLatestWriteC {
 
   def update(msg: Write1OKMessage): Write1StateVariable[T] =
     this.addWrite1OkMessage(msg)
@@ -46,23 +51,23 @@ case class Write1StateVariable[T](w1: Write1Message[T],
   }
 
   def addWrite1OkMessage(msg:Write1OKMessage): Write1StateVariable[T] =
-    Write1StateVariable(w1, addNewMex(msg, oKMessages, List()), latestWriteC,refusedMessages, recevedMessages, opHash)
+    Write1StateVariable(w1, addNewMex(msg, oKMessages, List()), latestWriteC,refusedMessages, recevedMessages, opHash, clientRef)
 
   def addRecevedMessages(replicaID: Int): Write1StateVariable[T] =
-    Write1StateVariable(w1, oKMessages, latestWriteC,refusedMessages, addRecevedMsg(replicaID), opHash)
+    Write1StateVariable(w1, oKMessages, latestWriteC,refusedMessages, addRecevedMsg(replicaID), opHash, clientRef)
 
   def addRefusedMessages(msg: Write1RefusedMessage): Write1StateVariable[T] =
-    Write1StateVariable(w1, oKMessages, latestWriteC, refusedMessages :+ msg, recevedMessages , opHash)
+    Write1StateVariable(w1, oKMessages, latestWriteC, refusedMessages :+ msg, recevedMessages , opHash, clientRef)
 
   def setLatestWriteC(writeC: Certificate[GrantTS]): Write1StateVariable[T] ={
-    Write1StateVariable(w1, oKMessages, chooseLatestWriteCFrom(writeC,latestWriteC),refusedMessages, recevedMessages, opHash)
+    Write1StateVariable(w1, oKMessages, chooseLatestWriteCFrom(writeC,latestWriteC),refusedMessages, recevedMessages, opHash, clientRef)
   }
 
   def createWrite1OkQuorumStateVariable(writeC: Certificate[GrantTS]): Write1OkQuorumStateVariable[T] =
-    Write1OkQuorumStateVariable(w1, writeC, latestWriteC.get, recevedMessages,opHash)
+    Write1OkQuorumStateVariable(w1, writeC, latestWriteC.get, recevedMessages,opHash, clientRef)
 
   def createWrite2StateVariable(writeC: Certificate[GrantTS]):Write2StateVariable =
-    Write2StateVariable(writeC, List(), opHash)
+    Write2StateVariable(writeC, List(), opHash, clientRef)
 
   def notEmptylatestWriteC : Boolean = latestWriteC.nonEmpty
 
@@ -79,7 +84,7 @@ case class Write1StateVariable[T](w1: Write1Message[T],
     .filter(_.grantTS.areTSOrVSNotEqual(updateReplicasMsg.head.grantTS))
     .map(_.grantTS.replicaID)
 
-  def resetState: Write1StateVariable[T] = Write1StateVariable(w1, List(), Option.empty, List(), List(), opHash)
+  def resetState: Write1StateVariable[T] = Write1StateVariable(w1, List(), Option.empty, List(), List(), opHash, clientRef)
 
   @scala.annotation.tailrec
   private def addNewMex(msg:Write1OKMessage, oldList: List[List[Write1OKMessage]], newList: List[List[Write1OKMessage]]): List[List[Write1OKMessage]] = oldList match {
@@ -94,36 +99,44 @@ case class Write1OkQuorumStateVariable[T](w1: Write1Message[T],
                                           writeC: Certificate[GrantTS],
                                           latestWriteC: Certificate[GrantTS],
                                           override val recevedMessages: List[Int],
-                                          override val opHash: Int)   extends  StateVariables(recevedMessages,opHash){
+                                          override val opHash: Int,
+                                          override val clientRef: ActorRef)
+  extends StateVariables(recevedMessages,opHash, clientRef){
 
   def addRecevedMessages(replicaID: Int): Write1OkQuorumStateVariable[T] =
-    Write1OkQuorumStateVariable(w1, writeC, latestWriteC, addRecevedMsg(replicaID), opHash)
+    Write1OkQuorumStateVariable(w1, writeC, latestWriteC, addRecevedMsg(replicaID), opHash, clientRef)
 
   def addGrantTS(grantTS: GrantTS): Write1OkQuorumStateVariable[T] =
-    Write1OkQuorumStateVariable(w1, Certificate(writeC.items :+ grantTS), latestWriteC, recevedMessages, opHash)
+    Write1OkQuorumStateVariable(w1, Certificate(writeC.items :+ grantTS), latestWriteC, recevedMessages, opHash, clientRef)
 
   def isGrantTSSameAsOther(grantTS: GrantTS):Boolean = grantTS == writeC.items.head
 
   def createWrite2StateVariable: Write2StateVariable =
-    Write2StateVariable(writeC, List(), opHash)
+    Write2StateVariable(writeC, List(), opHash, clientRef)
 }
 
 
-case class Write2StateVariable(writeC: Certificate[GrantTS], override val recevedMessages: List[Int], override val opHash: Int)
-  extends  StateVariables(recevedMessages,opHash){
+case class Write2StateVariable(writeC: Certificate[GrantTS],
+                               override val recevedMessages: List[Int],
+                               override val opHash: Int,
+                               override val clientRef: ActorRef)
+  extends StateVariables(recevedMessages,opHash, clientRef){
 
   def addRecevedMessages(replicaID: Int): Write2StateVariable =
-    Write2StateVariable(writeC,addRecevedMsg(replicaID), opHash)
+    Write2StateVariable(writeC,addRecevedMsg(replicaID), opHash, clientRef)
 }
 
-case class ReadStateVariable(latestWriteC: Option[Certificate[GrantTS]], override val recevedMessages: List[Int], override val opHash: Int)
-  extends  StateVariables(recevedMessages,opHash) with ManagerLatestWriteC {
+case class ReadStateVariable(latestWriteC: Option[Certificate[GrantTS]],
+                             override val recevedMessages: List[Int],
+                             override val opHash: Int,
+                             override val clientRef: ActorRef)
+  extends StateVariables(recevedMessages,opHash, clientRef) with ManagerLatestWriteC {
 
   def setLatestWriteC(writeC: Certificate[GrantTS]): ReadStateVariable =
-    ReadStateVariable(chooseLatestWriteCFrom(writeC,latestWriteC), recevedMessages, opHash)
+    ReadStateVariable(chooseLatestWriteCFrom(writeC,latestWriteC), recevedMessages, opHash, clientRef)
 
   def addRecevedMessages(replicaID: Int): ReadStateVariable =
-    ReadStateVariable(latestWriteC, recevedMessages :+ replicaID, opHash)
+    ReadStateVariable(latestWriteC, recevedMessages :+ replicaID, opHash, clientRef)
 
   def update(msg: ReadAnsMessage): ReadStateVariable =
     this.addRecevedMessages(msg.replicaID)

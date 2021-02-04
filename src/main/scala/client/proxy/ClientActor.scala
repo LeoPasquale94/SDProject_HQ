@@ -51,12 +51,12 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
   private def requireWrite(msg: RequireWriteMessage[T], opHash: Int): Unit = {
     val w1 = Write1Message(clientID, msg.objectID, opHash, msg.op)
     sendSignMexToAll(w1)
-    context.become(write1State(Write1StateVariable(w1, List(),Option.empty, List(), List(), opHash)))
+    context.become(write1State(Write1StateVariable(w1, List(),Option.empty, List(), List(), opHash, context.sender())))
   }
 
   private def requireRead(msg: RequireReadMessage, opHash: Int): Unit = {
     sendSignMexToAll(ReadMessage(clientID, msg.objectID))
-    context.become(readState(ReadStateVariable(Option.empty, List(), opHash)))
+    context.become(readState(ReadStateVariable(Option.empty, List(), opHash, context.sender())))
   }
 
   private def computeWrite1OkMessage(msg: Write1OKMessage, stateVariables: Write1StateVariable[T]): Unit = {
@@ -108,13 +108,13 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
   private def computeWrite2State(msg: Write2AnsMessage, stateVariables: Write2StateVariable): Unit = {
     if (stateVariables.getSizeRecevedMessages > QUORUM) {
       context.become(initState(stateVariables.opHash))
-      returnClient(msg.result)
+      stateVariables ! msg.result
     } else {
       context.become(write2State(stateVariables))
     }
   }
 
-  private def computeReadAnsMessage(msg: ReadAnsMessage, stateVariables:ReadStateVariable): Unit = {
+  private def computeReadAnsMessage(msg: ReadAnsMessage, stateVariables: ReadStateVariable): Unit = {
 
     val updateStateVariable = stateVariables.update(msg)
     if (updateStateVariable.isNotReplicaUpdatedOnWriteOperation(msg.currentC)) {
@@ -123,7 +123,7 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
     }
     if (stateVariables.getSizeRecevedMessages > QUORUM) {
       context.become(receive)
-      returnClient(msg.result)
+      stateVariables ! msg.result
     } else {
       context.become(readState(stateVariables))
     }
@@ -153,8 +153,5 @@ case class ClientActor[T](clientID: Int, serverReferences: Map[Int, ActorRef]) e
     Crypto.checkMex(message) && !recevedMessages.contains(message.signerID)
   }
 
-  private def returnClient[T](result: T): Unit = {
-   sender() ! result
-  }
 
 }
