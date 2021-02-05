@@ -8,19 +8,19 @@ case class Ops[T](write1Requests: List[Write1Message[T]], write1ReqExeRecently: 
 
   def setWrite1ReqExeRecently(mex: Write1Message[T]): Ops[T] = Ops(write1Requests, mex)
 }
-case class ClientAuthorizedToWriteInf[T](op: Int, mostRecentyExeWriteReq: Write1Message[T], result: Any, currentC: Certificate[GrantTS]){
-  def >(otherOp: Int): Boolean = op > otherOp
+case class ClientAuthorizedToWriteInf[T](nop: Int, mostRecentyExeWriteReq: Write1Message[T], result: Any, currentC: Certificate[GrantTS]){
+  def >(otherNOp: Int): Boolean = nop > otherNOp
 
-  def ==(otherOp: Int): Boolean = op == otherOp
+  def ==(otherNOp: Int): Boolean = nop == otherNOp
 }
 
-case class OldOps[T](mapOldOps: Map[String, ClientAuthorizedToWriteInf[T]]){
-  def add(clientID: String, clientInf:ClientAuthorizedToWriteInf[T]): OldOps[T] = OldOps( mapOldOps + (clientID -> clientInf))
+case class OldOps[T](mapOldOps: Map[Int, ClientAuthorizedToWriteInf[T]]){
+  def add(clientID: Int, clientInf:ClientAuthorizedToWriteInf[T]): OldOps[T] = OldOps( mapOldOps + (clientID -> clientInf))
 
-  def add (clientID: String, op: Int, mostRecentyExeWriteReq: Write1Message[T], result: Any, currentC: Certificate[GrantTS]): OldOps[T] =
+  def add (clientID: Int, op: Int, mostRecentyExeWriteReq: Write1Message[T], result: Any, currentC: Certificate[GrantTS]): OldOps[T] =
       add(clientID, ClientAuthorizedToWriteInf(op, mostRecentyExeWriteReq, result, currentC))
 
-  def getClientInf(clientID: String): Option[ClientAuthorizedToWriteInf[T]] =
+  def getClientInf(clientID: Int): Option[ClientAuthorizedToWriteInf[T]] =
     if(mapOldOps.contains(clientID)){ Option.apply(mapOldOps(clientID)) } else {Option.empty}
 }
 
@@ -34,11 +34,20 @@ case class ObjectInformation[T](currentC: Certificate[GrantTS], grantTS: Option[
 
   def setWrite1ReqExeRecently(mex: Write1Message[T]):ObjectInformation[T] = ObjectInformation(currentC, grantTS, ops.setWrite1ReqExeRecently(mex), oldOps, vs)
 
-  def addClientTAuthorizedToWrite(clientID: String, clientInf:ClientAuthorizedToWriteInf[T]): ObjectInformation[T] =
+  def addClientTAuthorizedToWrite(clientID: Int, clientInf:ClientAuthorizedToWriteInf[T]): ObjectInformation[T] =
     ObjectInformation(currentC, grantTS, ops, oldOps.add(clientID,clientInf), vs)
 
-  def addClientTAuthorizedToWrite(clientID: String, op: Int, mostRecentyExeWriteReq: Write1Message[T], result: Any, currentInWrite2AnsMex: Certificate[GrantTS]): ObjectInformation[T] =
+  def addClientTAuthorizedToWrite(clientID: Int, op: Int, mostRecentyExeWriteReq: Write1Message[T], result: Any, currentInWrite2AnsMex: Certificate[GrantTS]): ObjectInformation[T] =
     ObjectInformation(currentC, grantTS, ops, oldOps.add(clientID,op, mostRecentyExeWriteReq, result, currentInWrite2AnsMex), vs)
 
-  def getInfOfClientAuthorizedToWrite(clientID: String):Option[ClientAuthorizedToWriteInf[T]] = oldOps.getClientInf(clientID)
+  def getInfOfClientAuthorizedToWrite(clientID: Int):Option[ClientAuthorizedToWriteInf[T]] = oldOps.getClientInf(clientID)
+}
+
+case class Object[T](objectInformation: ObjectInformation[T], result: Any)
+
+case class Objects[T](objs: Map[Int, Object[T]]){
+
+  def getObjectResult(objectID:Int): Any = objs(objectID).result
+
+  def getObjectInformation(objectID:Int ): ObjectInformation[T] = objs(objectID).objectInformation
 }

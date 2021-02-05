@@ -1,10 +1,10 @@
 package AuthenticationCertification
 
-import java.security.SecureRandom
+import messages.{EncryptedMessage, SignedMessage}
 
-import messages.SignedMessage
-import javax.crypto.{Cipher, KeyGenerator}
+import java.security.SecureRandom
 import javax.crypto.spec.{IvParameterSpec, SecretKeySpec}
+import javax.crypto.{Cipher, KeyGenerator}
 
 
 object Crypto {
@@ -29,6 +29,8 @@ object Crypto {
     val sign = cipher.doFinal(mex.hashCode().toString.getBytes)
     sign
   }
+
+  def encrypt[T] (idSigner: Int, msg: T): EncryptedMessage  = EncryptedMessage(idSigner,  sign(msg, searchKey(idSigner)))
 
   private def searchKey (idOwner: Int): SecretKeySpec = key1
 
