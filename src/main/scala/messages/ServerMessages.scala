@@ -8,8 +8,8 @@ case class Write1OKMessage(grantTS: GrantTS, currentC: Certificate[GrantTS]) {
   def isThereConflict(other: Write1OKMessage): Boolean = other.grantTS.areTSAndVSEqual(grantTS) && !other.grantTS.grantWithoutStamps(grantTS)
 }
 
-case class Write1RefusedMessage(grantTS: GrantTS, clientID: Int, objectID: String, numberOperation: Int, currentC: Certificate[GrantTS])
+case class Write1RefusedMessage(grantTS: GrantTS, clientID: Int, objectID: Int, numberOperation: Int, currentC: Certificate[GrantTS])
 
-case class Write2AnsMessage(result: Any, currentC: Certificate[GrantTS], replicaID: Int)
+case class Write2AnsMessage(result: Float, currentC: Certificate[GrantTS], replicaID: Int)
 
-case class ReadAnsMessage(result: Any, nonce: Double= Math.random(), currentC: Certificate[GrantTS], replicaID: Int)
+case class ReadAnsMessage(result: Float, currentC: Certificate[GrantTS], replicaID: Int, nonce: Double= Math.random())

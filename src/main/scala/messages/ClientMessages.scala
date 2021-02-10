@@ -6,21 +6,24 @@ import AuthenticationCertification.{Certificate, GrantTS}
 trait RequireMessage{
   def nOp: Int
 }
-case class RequireWriteMessage[T](objectID: Int, op: T => T, nOp: Int) extends RequireMessage
+
+case class RequireWriteMessage(objectID: Int, op: Float => Float, nOp: Int) extends RequireMessage
 
 case class RequireReadMessage(objectID: Int, nOp: Int) extends RequireMessage
 
-case class Write1Message[T](clientID: Int, objectID: Int, numberOperation: Int,  op: T => T)
+case class Write1Message(clientID: Int, objectID: Int, numberOperation: Int, op:Float => Float){
+  def ==(other: Write1Message): Boolean = other.clientID == clientID && other.objectID == objectID
+}
 
 case class Write2Message(writeC: Certificate[GrantTS])
 
 case class ReadMessage(clientID: Int, objectID: Int, nonce: Double = Math.random())
 
-case class ResolveMessage[T](conflictC: Certificate[Write1OKMessage], write1Message: Write1Message[T])
+case class ResolveMessage(conflictC: Certificate[Write1OKMessage], write1Message: Write1Message)
 
-case class WriteBackWriteMessage[T](writeC: Certificate[GrantTS], write1Message: Write1Message[T])
+case class WriteBackWriteMessage(writeC: Certificate[GrantTS], write1Message: Write1Message)
 
-case class WriteBackReadMessage[T](writeC: Certificate[GrantTS], clietID: Int,
+case class WriteBackReadMessage(writeC: Certificate[GrantTS], clietID: Int,
                                 objectID: Int, nonce: Double = Math.random())
 
 

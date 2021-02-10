@@ -12,7 +12,7 @@ package AuthenticationCertification
  */
 case class GrantTS(clientID: Int, objectID: Int,
                    numberOperation: Int, hashOperation: Int,
-                   timeStamp: Double, viewStemp: Double,
+                   timeStamp: Int, viewStemp: Double,
                    replicaID: Int) {
    //TODO rivedere
    def ==(other: GrantTS): Boolean =

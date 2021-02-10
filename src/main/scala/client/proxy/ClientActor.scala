@@ -17,22 +17,22 @@ case class ClientActor(clientID: Int, serverReferences: Map[Int, ActorRef]) exte
     case event: RequireMessage => require(event, opHash, lastData)
   }
 
-  def write1State[T](stateVariables: Write1StateVariable[T]): Receive = {
+  def write1State(stateVariables: Write1StateVariable): Receive = {
     case event: SignedMessage[Write1OKMessage] =>
       if (checkMex(event, stateVariables.recevedMessages))
         computeWrite1OkMessage(event.msg, stateVariables)
     case event: SignedMessage[Write1RefusedMessage] =>
     if (checkMex(event, stateVariables.recevedMessages))
-        computeWrite1RefusedMessage(event.msg, stateVariables[T])
+        computeWrite1RefusedMessage(event.msg, stateVariables)
     case event: SignedMessage[Write2AnsMessage] =>
       if (checkMex(event, stateVariables.recevedMessages))
-        otherClientIsDoingThisWrite(event.msg, stateVariables[T])
+        otherClientIsDoingThisWrite(event.msg, stateVariables)
   }
 
-  def write1OkQuorumState[T](stateVariables: Write1OkQuorumStateVariable[T]): Receive = {
+  def write1OkQuorumState(stateVariables: Write1OkQuorumStateVariable): Receive = {
     case event: SignedMessage[Write1OKMessage] =>
       if (checkMex(event, stateVariables.recevedMessages))
-       computeWrite1OkMessageQuorumState(event.msg, stateVariables[T] )
+       computeWrite1OkMessageQuorumState(event.msg, stateVariables)
   }
 
   def write2State(stateVariables: Write2StateVariable): Receive = {
@@ -47,10 +47,10 @@ case class ClientActor(clientID: Int, serverReferences: Map[Int, ActorRef]) exte
         computeReadAnsMessage(event.msg, stateVariables)
   }
 
-  private def require[T](msg: RequireMessage, opHash: Int, lastData: Option[Any]): Unit =  {
+  private def require(msg: RequireMessage, opHash: Int, lastData: Option[Any]): Unit =  {
     if(msg.nOp == opHash) {
       msg match {
-        case msg: RequireWriteMessage[T] => requireWrite(msg, opHash + 1)
+        case msg: RequireWriteMessage => requireWrite(msg, opHash + 1)
         case msg: RequireReadMessage => requireRead(msg, opHash + 1)
       }
     }
@@ -62,7 +62,7 @@ case class ClientActor(clientID: Int, serverReferences: Map[Int, ActorRef]) exte
         context.sender() ! new WrongOpIndexException
   }
 
-  private def requireWrite[T](msg: RequireWriteMessage[T], opHash: Int): Unit = {
+  private def requireWrite(msg: RequireWriteMessage, opHash: Int): Unit = {
     val w1 = Write1Message(clientID, msg.objectID, opHash, msg.op)
     sendSignMexToAll(w1)
     context.become(write1State(Write1StateVariable(w1, List(),Option.empty, List(), List(), opHash, context.sender())))
@@ -73,7 +73,7 @@ case class ClientActor(clientID: Int, serverReferences: Map[Int, ActorRef]) exte
     context.become(readState(ReadStateVariable(Option.empty, List(), opHash, context.sender())))
   }
 
-  private def computeWrite1OkMessage[T](msg: Write1OKMessage, stateVariables: Write1StateVariable[T]): Unit = {
+  private def computeWrite1OkMessage(msg: Write1OKMessage, stateVariables: Write1StateVariable): Unit = {
     val updateStateVariable = stateVariables.update(msg)
     val eventualQuorum = updateStateVariable.areThereMoreThenQuorumEqualOKMsg(QUORUM)
 
@@ -90,7 +90,7 @@ case class ClientActor(clientID: Int, serverReferences: Map[Int, ActorRef]) exte
       context.become(write1State(updateStateVariable))
   }
 
-  private def computeWrite1RefusedMessage[T](msg: Write1RefusedMessage, stateVariables: Write1StateVariable[T]): Unit = {
+  private def computeWrite1RefusedMessage(msg: Write1RefusedMessage, stateVariables: Write1StateVariable): Unit = {
     val updateStatVariable = stateVariables.update(msg)
     if (updateStatVariable.getSizeRefusedMsg > QUORUM) {
       context.become(write1State(updateStatVariable.resetState))
@@ -100,12 +100,12 @@ case class ClientActor(clientID: Int, serverReferences: Map[Int, ActorRef]) exte
     }
   }
 
-  private def otherClientIsDoingThisWrite[T](msg: Write2AnsMessage, stateVariables: Write1StateVariable[T]): Unit = {
+  private def otherClientIsDoingThisWrite(msg: Write2AnsMessage, stateVariables: Write1StateVariable): Unit = {
     context.become(write2State(stateVariables.createWrite2StateVariable(msg.currentC)))
     sendSignMexToAll(Write2Message(msg.currentC))
   }
 
-  private def computeWrite1OkMessageQuorumState[T](msg: Write1OKMessage, stateVariables: Write1OkQuorumStateVariable[T]): Unit = {
+  private def computeWrite1OkMessageQuorumState(msg: Write1OKMessage, stateVariables: Write1OkQuorumStateVariable): Unit = {
     var updateStatVariable = stateVariables
     if (stateVariables.isGrantTSSameAsOther(msg.grantTS)) {
       updateStatVariable = stateVariables.addGrantTS(msg.grantTS)

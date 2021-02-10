@@ -12,8 +12,8 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 trait ProxyClient {
-  def write[T](op: T => T, oid: Int): T
-  def read[T](oid: Int): T
+  def write(op: Float => Float, oid: Int): Float
+  def read(oid: Int): Float
 }
 
 object ProxyClient{
@@ -41,11 +41,11 @@ object ProxyClient{
      */
     private var opCounter = 0
 
-    override def write[T](op: T => T, oid: Int): T = require(RequireWriteMessage(oid, op, opCounter)).asInstanceOf[T]
+    override def write(op: Float => Float, oid: Int): Float= require(RequireWriteMessage(oid, op, opCounter)).asInstanceOf[Float]
 
-    override def read[T](oid: Int): T = require(RequireReadMessage(oid, opCounter)).asInstanceOf[T]
+    override def read(oid: Int): Float = require(RequireReadMessage(oid, opCounter)).asInstanceOf[Float]
 
-    private def require[T, H](message : H): Any = {
+    private def require[ H](message : H): Any = {
       var redo = false
       var op = Option.empty
       val future = clientActorRef ? message
@@ -55,7 +55,7 @@ object ProxyClient{
         try {
             val future = clientActorRef ? message
             Await.result(future, timeout.duration)  match {
-              case t: T =>
+              case t: Float =>
                 opCounter += 1
                 return t
               case _ => throw WrongOpIndexException()

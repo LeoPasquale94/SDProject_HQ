@@ -9,7 +9,7 @@ case class DummyActor(replicaRef: ActorRef) extends Actor{
 
   private def initState[T](nOp: Int, lastData: Option[T], senderRef: ActorRef ): Receive = {
     case msg: RequireReadMessage => exec( nOp, lastData, msg.nOp, msg)
-    case msg: RequireWriteMessage[T] => exec(nOp, lastData, msg.nOp, msg)
+    case msg: RequireWriteMessage=> exec(nOp, lastData, msg.nOp, msg)
     case msg: Answer[T] => answer(nOp, msg, senderRef)
     case _ => context.sender() ! new WrongOpIndexException //TODO aggiungere eccezione
   }

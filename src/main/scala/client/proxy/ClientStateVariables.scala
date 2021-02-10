@@ -28,7 +28,7 @@ trait StateVariables {
 
 }
 
-case class Write1StateVariable[T](w1: Write1Message[T],
+case class Write1StateVariable(w1: Write1Message,
                                   oKMessages: List[List[Write1OKMessage]],
                                   latestWriteC: Option[Certificate[GrantTS]],
                                   refusedMessages: List[Write1RefusedMessage],
@@ -37,12 +37,12 @@ case class Write1StateVariable[T](w1: Write1Message[T],
                                   clientRef: ActorRef)
   extends StateVariables with ManagerLatestWriteC {
 
-  def update(msg: Write1OKMessage): Write1StateVariable[T] =
+  def update(msg: Write1OKMessage): Write1StateVariable =
     this.addWrite1OkMessage(msg)
       .addRecevedMessages(msg.grantTS.replicaID)
       .setLatestWriteC(msg.currentC)
 
-  def update(msg: Write1RefusedMessage): Write1StateVariable[T] =
+  def update(msg: Write1RefusedMessage): Write1StateVariable =
     this.addRefusedMessages(msg)
       .addRecevedMessages(msg.grantTS.replicaID)
 
@@ -56,20 +56,20 @@ case class Write1StateVariable[T](w1: Write1Message[T],
     _areThereMoreThenQuorumEqualOKMex(oKMessages)
   }
 
-  def addWrite1OkMessage(msg:Write1OKMessage): Write1StateVariable[T] =
+  def addWrite1OkMessage(msg:Write1OKMessage): Write1StateVariable =
     Write1StateVariable(w1, addNewMex(msg, oKMessages, List()), latestWriteC,refusedMessages, recevedMessages, opHash, clientRef)
 
-  def addRecevedMessages(replicaID: Int): Write1StateVariable[T] =
+  def addRecevedMessages(replicaID: Int): Write1StateVariable =
     Write1StateVariable(w1, oKMessages, latestWriteC,refusedMessages, addRecevedMsg(replicaID), opHash, clientRef)
 
-  def addRefusedMessages(msg: Write1RefusedMessage): Write1StateVariable[T] =
+  def addRefusedMessages(msg: Write1RefusedMessage): Write1StateVariable =
     Write1StateVariable(w1, oKMessages, latestWriteC, refusedMessages :+ msg, recevedMessages , opHash, clientRef)
 
-  def setLatestWriteC(writeC: Certificate[GrantTS]): Write1StateVariable[T] ={
+  def setLatestWriteC(writeC: Certificate[GrantTS]): Write1StateVariable ={
     Write1StateVariable(w1, oKMessages, chooseLatestWriteCFrom(writeC,latestWriteC),refusedMessages, recevedMessages, opHash, clientRef)
   }
 
-  def createWrite1OkQuorumStateVariable(writeC: Certificate[GrantTS]): Write1OkQuorumStateVariable[T] =
+  def createWrite1OkQuorumStateVariable(writeC: Certificate[GrantTS]): Write1OkQuorumStateVariable =
     Write1OkQuorumStateVariable(w1, writeC, latestWriteC.get, recevedMessages,opHash, clientRef)
 
   def createWrite2StateVariable(writeC: Certificate[GrantTS]):Write2StateVariable =
@@ -90,7 +90,7 @@ case class Write1StateVariable[T](w1: Write1Message[T],
     .filter(_.grantTS.areTSOrVSNotEqual(updateReplicasMsg.head.grantTS))
     .map(_.grantTS.replicaID)
 
-  def resetState: Write1StateVariable[T] = Write1StateVariable(w1, List(), Option.empty, List(), List(), opHash, clientRef)
+  def resetState: Write1StateVariable = Write1StateVariable(w1, List(), Option.empty, List(), List(), opHash, clientRef)
 
   @scala.annotation.tailrec
   private def addNewMex(msg:Write1OKMessage, oldList: List[List[Write1OKMessage]], newList: List[List[Write1OKMessage]]): List[List[Write1OKMessage]] = oldList match {
@@ -101,17 +101,17 @@ case class Write1StateVariable[T](w1: Write1Message[T],
 
 }
 
-case class Write1OkQuorumStateVariable[T](w1: Write1Message[T],
+case class Write1OkQuorumStateVariable(w1: Write1Message,
                                           writeC: Certificate[GrantTS],
                                           latestWriteC: Certificate[GrantTS],
                                           recevedMessages: List[Int],
                                           opHash: Int,
                                           clientRef: ActorRef) extends StateVariables{
 
-  def addRecevedMessages(replicaID: Int): Write1OkQuorumStateVariable[T] =
+  def addRecevedMessages(replicaID: Int): Write1OkQuorumStateVariable=
     Write1OkQuorumStateVariable(w1, writeC, latestWriteC, addRecevedMsg(replicaID), opHash, clientRef)
 
-  def addGrantTS(grantTS: GrantTS): Write1OkQuorumStateVariable[T] =
+  def addGrantTS(grantTS: GrantTS): Write1OkQuorumStateVariable =
     Write1OkQuorumStateVariable(w1, Certificate(writeC.items :+ grantTS), latestWriteC, recevedMessages, opHash, clientRef)
 
   def isGrantTSSameAsOther(grantTS: GrantTS):Boolean = grantTS == writeC.items.head

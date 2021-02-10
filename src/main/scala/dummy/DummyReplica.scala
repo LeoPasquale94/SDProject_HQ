@@ -21,7 +21,7 @@ case class DummyReplica() extends Actor{
 
   def initState[T]: Receive = {
     case msg: RequireReadMessage => read(msg.objectID)
-    case msg: RequireWriteMessage[T] => write(msg.objectID, msg.op)
+    case msg: RequireWriteMessage=> write(msg.objectID, msg.op)
   }
 
   private def sleep(time: Long) { Thread.sleep(time) }
