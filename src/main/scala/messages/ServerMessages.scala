@@ -14,4 +14,4 @@ case class Write2AnsMessage(result: Float, currentC: Certificate[GrantTS], repli
 
 case class ReadAnsMessage(result: Float, currentC: Certificate[GrantTS], replicaID: Int, nonce: Double= Math.random())
 
-case class ObjectNotExistMessage()
+case class ObjectNotFoundMessage()

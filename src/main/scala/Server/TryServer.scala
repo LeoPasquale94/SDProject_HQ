@@ -14,7 +14,7 @@ object TryServer extends App {
 
   private val system = ActorSystem()
   implicit val disp =  system.dispatcher
-  private val replicaRef = system.actorOf(Props(ReplicaActor(1)))
+  private val replicaRef = system.actorOf(Props(ServerActor(1)))
   implicit var timeout: Timeout = Timeout(10 seconds)
 
   //Todo Richiesta lettura objectId = 2 - dovrebbe tornare value = 7

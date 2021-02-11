@@ -21,6 +21,9 @@ case class Ops(write1RequestsOk: Option[Write1Message], responseWrite1Req: Optio
   def getLastResponse(msg: Write1Message): Any =
     if(write1RequestsOk.get == msg) responseWrite1Req.get else write1RequestsRefused.filter(_._1 == msg).head._2
 
+  def getGrantedRequest: Write1Message =
+    write1RequestsOk.get
+
 }
 
 object Ops {
@@ -55,13 +58,10 @@ case class OldOps(mapOldOps: Map[Int, ClientAuthorizedToWriteInf]){
   def add (clientID: Int, op: Int, mostRecentyExeWriteReq: Write1Message, result: Float, currentC: Certificate[GrantTS]): OldOps =
       add(clientID, ClientAuthorizedToWriteInf(op, mostRecentyExeWriteReq, result, currentC))
 
-  def getClientInfOption(clientID: Int): Option[ClientAuthorizedToWriteInf] =
-    if(mapOldOps.contains(clientID)){ Option.apply(mapOldOps(clientID)) } else {Option.empty}
-
   def getClientInf(clientID: Int): ClientAuthorizedToWriteInf =
     mapOldOps(clientID)
 
-  def getWrite2Ans(clientID: Int, replicaID: Int): Write2AnsMessage =
+  def getOldWrite2Ans(clientID: Int, replicaID: Int): Write2AnsMessage =
     mapOldOps(clientID).getWrite2Ans(replicaID)
 
   def updateClientInf(clientId: Int, newNop: Int, newResult: Float, newWriteC: Certificate[GrantTS]):OldOps =
@@ -76,8 +76,14 @@ case class ObjectInformation(currentC: Certificate[GrantTS], grantTS: Option[Gra
   def write1RequestExist(msg: Write1Message): Boolean = ops.nonEmpty && ops.get.write1RequestExist(msg)
 
   def updateClientInf(clientID: Int, result: Float): ObjectInformation = {
-    //ToDo da rivedere e/o modificare
-    ObjectInformation(currentC, grantTS, ops, Option(oldOps.get.updateClientInf(clientID, ??? ,result, currentC)), vs)
+    val newVal = currentC.items.head
+    val updateOldops = if(oldOps.isEmpty) {
+        OldOps(Map(clientID -> ClientAuthorizedToWriteInf(newVal.numberOperation, ops.get.getGrantedRequest, result, currentC)))
+     }else {
+        oldOps.get.updateClientInf(clientID, newVal.numberOperation, result, currentC)
+     }
+    ObjectInformation(currentC, grantTS, ops, Option(updateOldops), vs)
+
   }
 
   def addWrite1RequestRefuseResponse(msg: Write1Message, response: Write1RefusedMessage):ObjectInformation = {
@@ -97,7 +103,6 @@ case class ObjectInformation(currentC: Certificate[GrantTS], grantTS: Option[Gra
   def addClientTAuthorizedToWrite(clientID: Int, op: Int, mostRecentyExeWriteReq: Write1Message, result: Float, currentInWrite2AnsMex: Certificate[GrantTS]): ObjectInformation =
     ObjectInformation(currentC, grantTS, ops, Option(oldOps.get.add(clientID,op, mostRecentyExeWriteReq, result, currentInWrite2AnsMex)), vs)
 
-  //ToDo forse è inutile
   def setGrantTS(msg: Write1Message, replicaID: Int): ObjectInformation =
     ObjectInformation(currentC, Option(createGrantTS(msg, replicaID)), ops, oldOps, vs)
 
@@ -108,11 +113,10 @@ case class ObjectInformation(currentC: Certificate[GrantTS], grantTS: Option[Gra
     ObjectInformation(newCurrentC, grantTS, ops, oldOps, vs)
 
   def setWrite1ReqExeRecently(msg: Write1Message):ObjectInformation = {
-    val newOps = if (ops.isEmpty) Ops(msg) else ops.get.setWrite1ReqExeRecently(msg)
-    ObjectInformation(currentC, grantTS, Option(newOps), oldOps, vs)
+    //ToDo Dovrebbe essere chiamato solo quando la richiesta è eseguita
+   /// val newOps = if (ops.isEmpty) Ops(msg) else ops.get.setWrite1ReqExeRecently(msg)
+    ObjectInformation(currentC, grantTS, Option(Ops(msg)), oldOps, vs)
   }
-  def getInfOfClientAuthorizedToWrite(clientID: Int):Option[ClientAuthorizedToWriteInf] =
-    oldOps.get.getClientInfOption(clientID)
 
   def getLastResponse(msg: Write1Message): Any =
     ops.get.getLastResponse(msg)
@@ -125,6 +129,9 @@ case class Object(objectInformation: ObjectInformation, result: Float){
 
   def write(op: Float => Float): Object =
     Object(objectInformation, op(result.asInstanceOf))
+
+  def updateClientInf(clientID: Int): Object =
+    Object(objectInformation.updateClientInf(clientID, result), result)
 
   def appendRequest(msg: Write1Message, response: Write1OKMessage): Object =
     Object(objectInformation.addWrite1RequestOkResponse(msg, response), result )
@@ -142,8 +149,6 @@ case class Object(objectInformation: ObjectInformation, result: Float){
   def write1RequestExist(msg: Write1Message):Boolean =
     objectInformation.write1RequestExist(msg)
 
-  def createWrite2Response(replicaID: Int): Write2AnsMessage = Write2AnsMessage(result, getCurrentC, replicaID)
-
   def setGrantTSEmpty(): Object =
     Object(objectInformation.setGrantTS(Option.empty), result)
 
@@ -157,7 +162,7 @@ case class Object(objectInformation: ObjectInformation, result: Float){
 
   def getGrantTS: GrantTS = objectInformation.grantTS.get
 
-  def getOpS: Ops = objectInformation.ops.get
+  def getOps: Ops = objectInformation.ops.get
 
   def getOldOps: OldOps = objectInformation.oldOps.get
 
@@ -165,6 +170,10 @@ case class Object(objectInformation: ObjectInformation, result: Float){
 
   def getLastResponse(msg: Write1Message): Any =
     objectInformation.getLastResponse(msg)
+
+  def setWrite1ReqExeRecently(msg: Write1Message):Object = {
+    Object(objectInformation.setWrite1ReqExeRecently(msg), result)
+  }
 
 }
 
@@ -188,6 +197,11 @@ case class Objects(objs: Map[Int, Object]){
     Objects(objs + (msg.objectID -> update))
   }
 
+  def updateClientInf(objectID: Int, clientID: Int): Objects = {
+    val update = objs(objectID).updateClientInf(clientID)
+    Objects(objs + (objectID -> update))
+  }
+
   def isContainsObjectID(objectID :Int): Boolean = objs.contains(objectID)
 
   def isGrantTSEmpty(objectID: Int): Boolean = objs(objectID).isGrantTSEmpty
@@ -200,8 +214,10 @@ case class Objects(objs: Map[Int, Object]){
   def write1RequestExist(msg: Write1Message) : Boolean =
     objs(msg.objectID).write1RequestExist(msg)
 
-  def createWrite2Response(objectID: Int, clientID: Int): Write2AnsMessage =
-    objs(objectID).createWrite2Response(clientID)
+  def setWrite1ReqExeRecently(msg: Write1Message):Objects = {
+    val update = objs(msg.objectID).setWrite1ReqExeRecently(msg)
+    Objects(objs + (msg.objectID -> update))
+  }
 
   def setGrantTS(msg: Write1Message, replicaID: Int): Objects = {
     val update = objs(msg.objectID).setGrantTS(msg, replicaID)
@@ -238,4 +254,10 @@ case class Objects(objs: Map[Int, Object]){
 
   def getLastResponse(msg: Write1Message): Any =
     objs(msg.objectID).getLastResponse(msg)
+
+  def getGrantedRequest(objectID: Int): Write1Message =
+    objs(objectID).getOps.getGrantedRequest
+
+  def getResult(objectID: Int): Float =
+    objs(objectID).result
 }

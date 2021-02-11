@@ -1,9 +1,9 @@
 package Server
 
 import akka.actor.Actor
-import messages.{ObjectNotExistMessage, ReadAnsMessage, ReadMessage, SignedMessage, Write1Message, Write1OKMessage, Write1RefusedMessage, Write2AnsMessage, Write2Message}
+import messages.{ObjectNotFoundMessage, ReadAnsMessage, ReadMessage, SignedMessage, Write1Message, Write1OKMessage, Write1RefusedMessage, Write2AnsMessage, Write2Message}
 
-case class ReplicaActor(replicaID: Int) extends Actor{
+case class ServerActor(replicaID: Int) extends Actor{
 
   override def receive: Receive = activeState(ObjectInfInitializer.initObj)
 
@@ -22,13 +22,13 @@ case class ReplicaActor(replicaID: Int) extends Actor{
       sendSignMsg(ReadAnsMessage(result,currentC, replicaID))
       context.become(activeState(objects))
     }else{
-      context.sender() ! ObjectNotExistMessage()
+      context.sender() ! ObjectNotFoundMessage()
     }
 
   }
 
   private def computeWrite1Message(msg: Write1Message, objects: Objects): Unit = {
-    if(checkRequest(msg.objectID, msg.clientID, msg.numberOperation, objects, msg)){
+    if(checkRequest(msg.objectID, msg.clientID, msg.numberOperation, objects)){
 
       if(objects.write1RequestExist(msg)){
         context.sender() ! objects.getLastResponse(msg)
@@ -49,12 +49,25 @@ case class ReplicaActor(replicaID: Int) extends Actor{
   }
 
   private def computeWrite2Message(msg: Write2Message, objects: Objects): Unit = {
-    val grantTSOfMsg = msg.writeC.items.head
-    if(checkRequest(grantTSOfMsg.objectID, grantTSOfMsg.clientID, grantTSOfMsg.numberOperation, objects, msg)){
-      val currentC = objects.getCurrentC(grantTSOfMsg.objectID)
-      val vs = objects.getViewstemp(grantTSOfMsg.objectID)
-      if(vs == msg.writeC.items.head.viewStemp || currentC.items.head.timeStamp == currentC.items.head.timeStamp - 1 ){
+    val clientWriteCertificate = msg.writeC.items.head
+    if(checkRequest(clientWriteCertificate.objectID, clientWriteCertificate.clientID, clientWriteCertificate.numberOperation, objects)){
 
+      val currentC = objects.getCurrentC(clientWriteCertificate.objectID).items.head
+      val vs = objects.getViewstemp(clientWriteCertificate.objectID)
+
+      if(vs == clientWriteCertificate.viewStemp && currentC.timeStamp == clientWriteCertificate.timeStamp - 1 ){
+        val write1Req = objects.getGrantedRequest(clientWriteCertificate.objectID)
+        val objectID = write1Req.objectID
+        //ToDo controllare meglio
+        val updateObjects = objects
+          .write(objectID, write1Req.op)
+          .setGrantTSEmpty(objectID)
+          .setCurrentC(objectID, msg.writeC)
+          .updateClientInf(objectID, write1Req.clientID)
+          .setWrite1ReqExeRecently(write1Req)
+        val response = Write2AnsMessage(updateObjects.getResult(write1Req.objectID), msg.writeC, replicaID)
+        sendSignMsg(response)
+        context.become(activeState(updateObjects))
       }else{
         //ToDo gestisci conflitto
       }
@@ -62,21 +75,18 @@ case class ReplicaActor(replicaID: Int) extends Actor{
 
   }
 
-  private def checkRequest[M](objectId: Int, clientId: Int, nopMsg: Int, objs: Objects, msg: M): Boolean = {
+  private def checkRequest[M](objectId: Int, clientID: Int, nopMsg: Int, objs: Objects): Boolean = {
     if(objs.isContainsObjectID(objectId) &&
       objs.isOldOpsNotEmpty(objectId) &&
-      objs.isClientContainedInOldOps(objectId, clientId)){
+      objs.isClientContainedInOldOps(objectId, clientID)){
 
-      val oldOps = objs.getObjectInformation(objectId).oldOps.get
+      val oldOps = objs.getObject(objectId).getOldOps
       if(oldOps.getClientInf(objectId) > nopMsg) {
         context.sender()! Some("Old_Request")
         return false
       }
       if(oldOps.getClientInf(objectId) == nopMsg){
-        msg match {
-          case msg: Write1Message => sendSignMsg(oldOps.getWrite2Ans(msg.clientID, replicaID))
-          case _: Write2Message => sendSignMsg(objs.createWrite2Response(objectId, replicaID))
-        }
+        sendSignMsg(oldOps.getOldWrite2Ans(clientID, replicaID))
         return false
       }
     }
