@@ -1,35 +1,37 @@
 package Server
 
 import AuthenticationCertification.{Certificate, GrantTS}
-import akka.actor.ActorRef
 import messages.{Write1Message, Write1OKMessage, Write1RefusedMessage, Write2AnsMessage}
 
 
-case class Ops(write1RequestsOk: Write1Message, responseWrite1Req: Write1OKMessage, write1RequestsRefused: Map[Write1Message, Write1RefusedMessage], write1ReqExeRecently: Option[Write1Message]) {
+case class Ops(write1RequestsOk: Option[Write1Message], responseWrite1Req: Option[Write1OKMessage], write1RequestsRefused: List[(Write1Message, Write1RefusedMessage)], write1ReqExeRecently: Option[Write1Message]) {
 
   def addWrite1RequestOk[R](msg: Write1Message, response: Write1OKMessage):Ops =
-    Ops(msg, response, write1RequestsRefused, write1ReqExeRecently)
+    Ops(Option(msg), Option(response), write1RequestsRefused, write1ReqExeRecently)
 
   def addWrite1RequestRefused[R](msg: Write1Message, response: Write1RefusedMessage):Ops =
-    Ops(write1RequestsOk, responseWrite1Req, write1RequestsRefused + (msg -> response), write1ReqExeRecently)
+    Ops(write1RequestsOk, responseWrite1Req, write1RequestsRefused :+ (msg, response), write1ReqExeRecently)
 
-  def setWrite1ReqExeRecently(mex: Write1Message): Ops =
-    Ops(write1RequestsOk, responseWrite1Req, write1RequestsRefused, Option.apply(mex))
+  def setWrite1ReqExeRecently(msg: Write1Message): Ops =
+    Ops(write1RequestsOk, responseWrite1Req, write1RequestsRefused, Option.apply(msg))
 
-  def write1RequestExist(msg: Write1Message):Boolean = write1RequestsOk == msg || write1RequestsRefused.contains(msg)
+  def write1RequestExist(msg: Write1Message):Boolean =
+    (write1RequestsOk.nonEmpty && write1RequestsOk.get == msg) || write1RequestsRefused.exists(_._1 == msg)
 
-  def sendToClientLastResponse(msg: Write1Message, clientRef: ActorRef): Unit = {
-    if(write1RequestsOk == msg){
-      clientRef ! responseWrite1Req
-    } else {
-      clientRef ! write1RequestsRefused(msg)
-    }
-  }
+  def getLastResponse(msg: Write1Message): Any =
+    if(write1RequestsOk.get == msg) responseWrite1Req.get else write1RequestsRefused.filter(_._1 == msg).head._2
 
 }
 
 object Ops {
-  def apply(request: Write1Message, response: Write1OKMessage): Ops = Ops(request, response, Map(), Option.empty)
+  def apply(request: Write1Message, response: Write1OKMessage): Ops =
+    Ops(Option(request), Option(response), List(), Option.empty)
+
+  def apply(request: Write1Message, response: Write1RefusedMessage): Ops =
+    Ops(Option.empty, Option.empty, List((request,response)), Option.empty)
+
+  def apply(write1ReqExeRecently: Write1Message): Ops =
+    Ops(Option.empty, Option.empty, List(), Option(write1ReqExeRecently))
 }
 
 case class ClientAuthorizedToWriteInf(nop: Int, mostRecentyExeWriteReq: Write1Message, result: Float, currentC: Certificate[GrantTS]){
@@ -64,14 +66,40 @@ case class OldOps(mapOldOps: Map[Int, ClientAuthorizedToWriteInf]){
 
   def updateClientInf(clientId: Int, newNop: Int, newResult: Float, newWriteC: Certificate[GrantTS]):OldOps =
     OldOps(mapOldOps + (clientId -> mapOldOps(clientId).update(newNop,newResult, newWriteC)))
+
+  def isClientContains(clientId: Int): Boolean =
+    mapOldOps.contains(clientId)
 }
 
 case class ObjectInformation(currentC: Certificate[GrantTS], grantTS: Option[GrantTS], ops: Option[Ops], oldOps: Option[OldOps], vs: Double){
 
-  def isGrantTSNull:Boolean = grantTS.isEmpty
+  def write1RequestExist(msg: Write1Message): Boolean = ops.nonEmpty && ops.get.write1RequestExist(msg)
 
+  def updateClientInf(clientID: Int, result: Float): ObjectInformation = {
+    //ToDo da rivedere e/o modificare
+    ObjectInformation(currentC, grantTS, ops, Option(oldOps.get.updateClientInf(clientID, ??? ,result, currentC)), vs)
+  }
+
+  def addWrite1RequestRefuseResponse(msg: Write1Message, response: Write1RefusedMessage):ObjectInformation = {
+    val newOps = if(ops.isEmpty) Ops(msg, response) else ops.get.addWrite1RequestRefused(msg, response)
+    ObjectInformation(currentC, grantTS, Option(newOps), oldOps, vs)
+  }
+
+  def addWrite1RequestOkResponse(msg: Write1Message, response: Write1OKMessage): ObjectInformation = {
+    val newOps = if (ops.isEmpty) Ops(msg, response) else ops.get.addWrite1RequestOk(msg, response)
+    ObjectInformation(currentC, grantTS, Option(newOps), oldOps, vs)
+  }
+  def addClientTAuthorizedToWrite(clientID: Int, clientInf:ClientAuthorizedToWriteInf): ObjectInformation= {
+    val newoldOps = if(oldOps.nonEmpty) {Option(oldOps.get.add(clientID,clientInf))} else { Option(OldOps(Map(clientID -> clientInf)))}
+    ObjectInformation(currentC, grantTS, ops, newoldOps, vs)
+  }
+  //ToDo forse si può eliminare
+  def addClientTAuthorizedToWrite(clientID: Int, op: Int, mostRecentyExeWriteReq: Write1Message, result: Float, currentInWrite2AnsMex: Certificate[GrantTS]): ObjectInformation =
+    ObjectInformation(currentC, grantTS, ops, Option(oldOps.get.add(clientID,op, mostRecentyExeWriteReq, result, currentInWrite2AnsMex)), vs)
+
+  //ToDo forse è inutile
   def setGrantTS(msg: Write1Message, replicaID: Int): ObjectInformation =
-    ObjectInformation(currentC, Option.apply(createGrantTS(msg, replicaID)), ops, oldOps, vs)
+    ObjectInformation(currentC, Option(createGrantTS(msg, replicaID)), ops, oldOps, vs)
 
   def setGrantTS(newGrantTS: Option[GrantTS]): ObjectInformation =
     ObjectInformation(currentC, newGrantTS, ops, oldOps, vs)
@@ -79,28 +107,15 @@ case class ObjectInformation(currentC: Certificate[GrantTS], grantTS: Option[Gra
   def setCurrentC(newCurrentC: Certificate[GrantTS]):ObjectInformation =
     ObjectInformation(newCurrentC, grantTS, ops, oldOps, vs)
 
-  def updateClientInf(clientID: Int, result: Float): ObjectInformation =
-    ObjectInformation(currentC, grantTS, ops, Option.apply(oldOps.get.updateClientInf(clientID, ??? ,result, currentC)), vs)
-
-  def addWrite1RequestRefuseResponse(mex: Write1Message, response: Write1RefusedMessage):ObjectInformation =
-    ObjectInformation(currentC, grantTS,  Option.apply(ops.get.addWrite1RequestRefused(mex,  response)), oldOps, vs)
-
-  def addWrite1RequestOkResponse(msg: Write1Message, response: Write1OKMessage): ObjectInformation = {
-    val newOps = if(ops.nonEmpty) Option.apply(ops.get.addWrite1RequestOk(msg, response)) else Option.apply(Ops(msg, response))
-    ObjectInformation(currentC,  grantTS, newOps, oldOps, vs)
+  def setWrite1ReqExeRecently(msg: Write1Message):ObjectInformation = {
+    val newOps = if (ops.isEmpty) Ops(msg) else ops.get.setWrite1ReqExeRecently(msg)
+    ObjectInformation(currentC, grantTS, Option(newOps), oldOps, vs)
   }
+  def getInfOfClientAuthorizedToWrite(clientID: Int):Option[ClientAuthorizedToWriteInf] =
+    oldOps.get.getClientInfOption(clientID)
 
-  def setWrite1ReqExeRecently(mex: Write1Message):ObjectInformation = {
-    ObjectInformation(currentC, grantTS, Option.apply(ops.get.setWrite1ReqExeRecently(mex)), oldOps, vs)
-  }
-
-  def addClientTAuthorizedToWrite(clientID: Int, clientInf:ClientAuthorizedToWriteInf): ObjectInformation=
-    ObjectInformation(currentC, grantTS, ops, Option.apply(oldOps.get.add(clientID,clientInf)), vs)
-
-  def addClientTAuthorizedToWrite(clientID: Int, op: Int, mostRecentyExeWriteReq: Write1Message, result: Float, currentInWrite2AnsMex: Certificate[GrantTS]): ObjectInformation =
-    ObjectInformation(currentC, grantTS, ops, Option.apply(oldOps.get.add(clientID,op, mostRecentyExeWriteReq, result, currentInWrite2AnsMex)), vs)
-
-  def getInfOfClientAuthorizedToWrite(clientID: Int):Option[ClientAuthorizedToWriteInf] = oldOps.get.getClientInfOption(clientID)
+  def getLastResponse(msg: Write1Message): Any =
+    ops.get.getLastResponse(msg)
 
   private def createGrantTS(msg: Write1Message, replicaID: Int):GrantTS =
     GrantTS(msg.clientID, msg.objectID, msg.numberOperation, msg.clientID.hashCode() + msg.objectID.hashCode() + msg.numberOperation.hashCode(), currentC.items.head.timeStamp + 1, vs, replicaID)
@@ -108,13 +123,29 @@ case class ObjectInformation(currentC: Certificate[GrantTS], grantTS: Option[Gra
 
 case class Object(objectInformation: ObjectInformation, result: Float){
 
+  def write(op: Float => Float): Object =
+    Object(objectInformation, op(result.asInstanceOf))
+
   def appendRequest(msg: Write1Message, response: Write1OKMessage): Object =
     Object(objectInformation.addWrite1RequestOkResponse(msg, response), result )
 
   def appendRequest(msg: Write1Message, response: Write1RefusedMessage): Object =
     Object(objectInformation.addWrite1RequestRefuseResponse(msg, response), result)
 
-  def isGrantTSNull:Boolean = objectInformation.isGrantTSNull
+  def isGrantTSEmpty:Boolean = objectInformation.grantTS.isEmpty
+
+  def isOldOpsNotEmpty: Boolean = objectInformation.oldOps.nonEmpty
+
+  def isClientContainedInOldOps(clientID: Int): Boolean =
+    objectInformation.oldOps.nonEmpty && objectInformation.oldOps.get.isClientContains(clientID)
+
+  def write1RequestExist(msg: Write1Message):Boolean =
+    objectInformation.write1RequestExist(msg)
+
+  def createWrite2Response(replicaID: Int): Write2AnsMessage = Write2AnsMessage(result, getCurrentC, replicaID)
+
+  def setGrantTSEmpty(): Object =
+    Object(objectInformation.setGrantTS(Option.empty), result)
 
   def setGrantTS(msg: Write1Message, replicaID: Int): Object =
     Object(objectInformation.setGrantTS(msg, replicaID), result)
@@ -122,21 +153,30 @@ case class Object(objectInformation: ObjectInformation, result: Float){
   def setCurrentC(newCurrentC: Certificate[GrantTS]): Object =
     Object(objectInformation.setCurrentC(newCurrentC), result)
 
-  def setGrantTSEmpty(): Object =
-    Object(objectInformation.setGrantTS(Option.empty), result)
-
   def getCurrentC: Certificate[GrantTS] = objectInformation.currentC
 
-  def createWrite2Response(replicaID: Int): Write2AnsMessage = Write2AnsMessage(result, getCurrentC, replicaID)
+  def getGrantTS: GrantTS = objectInformation.grantTS.get
 
-  def write(op: Float => Float): Object =
-    Object(objectInformation, op(result.asInstanceOf))
+  def getOpS: Ops = objectInformation.ops.get
+
+  def getOldOps: OldOps = objectInformation.oldOps.get
+
+  def getViewstemp: Double = objectInformation.vs
+
+  def getLastResponse(msg: Write1Message): Any =
+    objectInformation.getLastResponse(msg)
 
 }
 
 case class Objects(objs: Map[Int, Object]){
 
-  def getObjectInformation(objectID: Int): ObjectInformation = objs(objectID).objectInformation
+  def write(objectID: Int, op: Float => Float): Objects = {
+    val update = objs(objectID).write(op)
+    Objects(objs + (objectID -> update))
+  }
+
+  def read(objectID: Int): Float =
+    objs(objectID).result
 
   def appendRequest(msg: Write1Message, response: Write1OKMessage): Objects = {
     val update = objs(msg.objectID).appendRequest(msg, response)
@@ -148,14 +188,26 @@ case class Objects(objs: Map[Int, Object]){
     Objects(objs + (msg.objectID -> update))
   }
 
-  def isGrantTSNull(objectID: Int): Boolean = objs(objectID).isGrantTSNull
+  def isContainsObjectID(objectID :Int): Boolean = objs.contains(objectID)
 
-  def contains(objectID :Int): Boolean = objs.contains(objectID)
+  def isGrantTSEmpty(objectID: Int): Boolean = objs(objectID).isGrantTSEmpty
+
+  def isOldOpsNotEmpty(objectId: Int): Boolean = objs(objectId).isOldOpsNotEmpty
+
+  def isClientContainedInOldOps(objectID: Int, clientID: Int): Boolean =
+    objs(objectID).isClientContainedInOldOps(clientID)
+
+  def write1RequestExist(msg: Write1Message) : Boolean =
+    objs(msg.objectID).write1RequestExist(msg)
+
+  def createWrite2Response(objectID: Int, clientID: Int): Write2AnsMessage =
+    objs(objectID).createWrite2Response(clientID)
 
   def setGrantTS(msg: Write1Message, replicaID: Int): Objects = {
     val update = objs(msg.objectID).setGrantTS(msg, replicaID)
     Objects(objs + (msg.objectID -> update))
   }
+
   def setGrantTSEmpty(objectID: Int): Objects = {
     val update = objs(objectID).setGrantTSEmpty()
     Objects(objs + (objectID -> update))
@@ -167,26 +219,23 @@ case class Objects(objs: Map[Int, Object]){
   }
 
   def getGrantTS(objectID: Int): GrantTS =
-    objs(objectID).objectInformation.grantTS.get
+    objs(objectID).getGrantTS
 
   def getCurrentC(objectID: Int): Certificate[GrantTS] =
     objs(objectID).getCurrentC
 
+  def getObject(objectID: Int): Object =
+    objs(objectID)
+
   def getObjectInf(objectID: Int): ObjectInformation =
     objs(objectID).objectInformation
 
-  def createWrite2Response(objectID: Int, clientID: Int): Write2AnsMessage =
-    objs(objectID).createWrite2Response(clientID)
+  def getViewstemp(objectID: Int): Double =
+    objs(objectID).getViewstemp
 
-  def getViewstamp(objectID: Int): Double =
-    objs(objectID).objectInformation.vs
+  def getObjectInformation(objectID: Int): ObjectInformation =
+    objs(objectID).objectInformation
 
-  def write(objectID: Int, op: Float => Float): Objects = {
-    val update = objs(objectID).write(op)
-    Objects(objs + (objectID -> update))
-  }
-
-  def read(objectID: Int): Float =
-    objs(objectID).result
-
+  def getLastResponse(msg: Write1Message): Any =
+    objs(msg.objectID).getLastResponse(msg)
 }

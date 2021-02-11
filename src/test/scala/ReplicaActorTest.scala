@@ -1,11 +1,11 @@
-import AuthenticationCertification.Certificate
-import Server.ObjectInfInitializer.{certificate2, grantTS5, grantTS6, grantTS7, grantTS8, grantTSObj2}
+import AuthenticationCertification.{Certificate, GrantTS}
+import Server.ObjectInfInitializer.{certificate2, grantTS10, grantTS11, grantTS12, grantTS5, grantTS6, grantTS7, grantTS8, grantTS9, grantTSObj2}
 import Server.ReplicaActor
 import org.junit.runner.RunWith
 import org.scalatest.{FunSuite, Matchers}
 import org.scalatest.junit.JUnitRunner
 import akka.actor.{ActorSystem, Props}
-import messages.{ReadAnsMessage, ReadMessage, Write1Message, Write1OKMessage, Write2AnsMessage}
+import messages.{ReadAnsMessage, ReadMessage, Write1Message, Write1OKMessage, Write1RefusedMessage, Write2AnsMessage}
 import akka.pattern.ask
 import akka.util.Timeout
 import org.scalatest.concurrent.ScalaFutures
@@ -39,11 +39,19 @@ class ReplicaActorTest extends FunSuite with Matchers with ScalaFutures{
     }
   }
 
-  test("Request Write1 stored in ops"){
+  test("Write1 request stored in ops"){
     whenReady(replicaRef ? Write1Message(2, 2, 6, _ + 5)){
       case result: Write1OKMessage => result shouldBe Write1OKMessage(grantTSObj2, certificate2)
     }
   }
 
+  test("Client 2 receives Write1OkMessage but, client 1 receives Write1RefusedMessage"){
+    whenReady(replicaRef ?  Write1Message(2, 3, 6, _ + 5)) {
+      case result: Write1OKMessage => result shouldBe Write1OKMessage(GrantTS(2, 3, 6, 2.hashCode() + 3.hashCode() + 6.hashCode(), 2, 0.5, 1), Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
+    }
+    whenReady(replicaRef ?  Write1Message(1, 3, 3, _ + 10)){
+      case result: Write1RefusedMessage => result shouldBe Write1RefusedMessage(GrantTS(2, 3, 6, 2.hashCode() + 3.hashCode() + 6.hashCode(), 2, 0.5, 1), 2, 3, 6, Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
+    }
+  }
 
 }

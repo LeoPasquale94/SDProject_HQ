@@ -13,3 +13,5 @@ case class Write1RefusedMessage(grantTS: GrantTS, clientID: Int, objectID: Int, 
 case class Write2AnsMessage(result: Float, currentC: Certificate[GrantTS], replicaID: Int)
 
 case class ReadAnsMessage(result: Float, currentC: Certificate[GrantTS], replicaID: Int, nonce: Double= Math.random())
+
+case class ObjectNotExistMessage()
