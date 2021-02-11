@@ -128,7 +128,7 @@ case class ObjectInformation(currentC: Certificate[GrantTS], grantTS: Option[Gra
 case class Object(objectInformation: ObjectInformation, result: Float){
 
   def write(op: Float => Float): Object =
-    Object(objectInformation, op(result.asInstanceOf))
+    Object(objectInformation, op(result))
 
   def updateClientInf(clientID: Int): Object =
     Object(objectInformation.updateClientInf(clientID, result), result)

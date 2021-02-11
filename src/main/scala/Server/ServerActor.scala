@@ -24,7 +24,6 @@ case class ServerActor(replicaID: Int) extends Actor{
     }else{
       context.sender() ! ObjectNotFoundMessage()
     }
-
   }
 
   private def computeWrite1Message(msg: Write1Message, objects: Objects): Unit = {
