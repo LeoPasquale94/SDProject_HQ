@@ -51,31 +51,62 @@ class ServerActorTest extends FunSuite with Matchers with ScalaFutures{
     }
   }
 
-  test("Client 2 receives Write1OkMessage - client 1 receives Write1RefusedMessage - redundant request  - Client 2 computes write operation"){
+  test("Multi Write e Read request"){
+   /** Richiesta scrittura cliente 2 sull'oggetto 3 - Cliente ottiene il permesso di scrittura al ts = 2 */
     whenReady(replicaRef ?  Write1Message(2, 3, 6, _ + 5)) {
       case result: Write1OKMessage => result shouldBe Write1OKMessage(GrantTS(2, 3, 6, 2, 0.5, 1), Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
     }
+    /**Richiesta duplicata*/
     whenReady(replicaRef ?  Write1Message(2, 3, 6, _ + 5)) {
       case result: Write1OKMessage => result shouldBe Write1OKMessage(GrantTS(2, 3, 6, 2, 0.5, 1), Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
     }
+    /**Richiesta scrittura cliente 1 sull'oggetto 3 - Cliente non ottiene il permesso */
     whenReady(replicaRef ?  Write1Message(1, 3, 3, _ + 10)){
       case result: Write1RefusedMessage => result shouldBe Write1RefusedMessage(GrantTS(2, 3, 6, 2, 0.5, 1), 2, 3, 6, Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
     }
     whenReady(replicaRef ?  Write1Message(1, 3, 3, _ + 10)){
       case result: Write1RefusedMessage => result shouldBe Write1RefusedMessage(GrantTS(2, 3, 6, 2, 0.5, 1), 2, 3, 6, Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
     }
+    /**Richiesta Lettura cliente 1 sull'oggetto 3 */
     whenReady(replicaRef ? ReadMessage(1, 3)){
       result => result.asInstanceOf[ReadAnsMessage].result shouldBe 10.0
     }
+    /**Scrittura sull'oggetto 3 del cliente 2 che ha ottenuto il permesso */
     whenReady(replicaRef ?  Write2Message(Certificate(List(grantTS13, grantTS14, grantTS15, grantTS16)))) {
       case result: Write2AnsMessage => result shouldBe Write2AnsMessage(15, Certificate(List(grantTS13, grantTS14, grantTS15, grantTS16)), 1)
     }
-
    whenReady(replicaRef ?  Write2Message(Certificate(List(grantTS13, grantTS14, grantTS15, grantTS16)))) {
       case result: Write2AnsMessage => result shouldBe Write2AnsMessage(15, Certificate(List(grantTS13, grantTS14, grantTS15, grantTS16)), 1)
     }
+    /**Lettura oggetto 3 da parte del cliente 1*/
     whenReady(replicaRef ? ReadMessage(1, 3)){
       result => result.asInstanceOf[ReadAnsMessage].result shouldBe 15.0
+    }
+
+    /** Richiesta scrittura cliente 1 sull'oggetto 3 - Cliente ottiene il permesso di scrittura al ts = 3 */
+    whenReady(replicaRef ?  Write1Message(1, 3, 3, _ + 10)){
+      case result: Write1OKMessage => result shouldBe Write1OKMessage(GrantTS(1, 3, 3, 3, 0.5, 1), Certificate(List(grantTS13, grantTS14, grantTS15, grantTS16)))
+    }
+    /**Vecchia Richiesta scrittura cliente 2  sull'oggetto 3 */
+    whenReady(replicaRef ?  Write1Message(2, 3, 1, _ + 10)){
+      result => result shouldBe Some("Old_Request")
+    }
+    /** Richiesta scrittura cliente 2 sull'oggetto 3 - Cliente non ottiene il permesso di scrittura al ts = 3 */
+    whenReady(replicaRef ?  Write1Message(2, 3, 7, _ + 10)){
+      case result: Write1RefusedMessage => result shouldBe Write1RefusedMessage(GrantTS(1, 3, 3, 3, 0.5, 1), 1, 3, 3, Certificate(List(grantTS13, grantTS14, grantTS15, grantTS16)))
+    }
+    /** Scrittura sull'oggetto 3 del cliente 1 che ha ottenuto il permesso al ts 3 */
+    val writeC133 = Certificate(List(GrantTS(1, 3, 3, 3, 0.5, 1), GrantTS(1, 3, 3, 3, 0.5, 2), GrantTS(1, 3, 3, 3, 0.5, 3), GrantTS(1, 3, 3, 3, 0.5, 4)))
+    whenReady(replicaRef ?  Write2Message(writeC133)) {
+      case result: Write2AnsMessage => result shouldBe Write2AnsMessage(25, writeC133, 1)
+    }
+    //richiesta precedente
+    whenReady(replicaRef ?  Write2Message(writeC133)) {
+      case result: Write2AnsMessage => result shouldBe Write2AnsMessage(25, writeC133, 1)
+    }
+    /**Lettura oggetto 3 da parte del cliente 1 */
+    whenReady(replicaRef ? ReadMessage(1, 3)){
+      result => result.asInstanceOf[ReadAnsMessage].result shouldBe 25.0
     }
   }
 

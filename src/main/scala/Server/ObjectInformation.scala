@@ -37,7 +37,7 @@ object Ops {
     Ops(Option.empty, Option.empty, List(), Option(write1ReqExeRecently))
 }
 
-case class ClientAuthorizedToWriteInf(nop: Int, mostRecentyExeWriteReq: Write1Message, result: Float, currentC: Certificate[GrantTS]){
+case class ClientAuthorizedToWriteInf(nop: Int, mostRecentyExeWriteReq: Write1Message, result: Float, currentC: Certificate[GrantTS]) {
 
   def >(otherNOp: Int): Boolean = nop > otherNOp
 
@@ -45,11 +45,7 @@ case class ClientAuthorizedToWriteInf(nop: Int, mostRecentyExeWriteReq: Write1Me
 
   def getWrite2Ans(replicaID: Int): Write2AnsMessage =
     Write2AnsMessage(result, currentC, replicaID)
-
-  def update(newNop: Int, newResult: Float, newWriteC: Certificate[GrantTS]): ClientAuthorizedToWriteInf =
-    ClientAuthorizedToWriteInf(newNop,mostRecentyExeWriteReq, newResult, newWriteC)
 }
-
 case class OldOps(mapOldOps: Map[Int, ClientAuthorizedToWriteInf]){
 
   def add(clientID: Int, clientInf:ClientAuthorizedToWriteInf): OldOps =
@@ -64,8 +60,10 @@ case class OldOps(mapOldOps: Map[Int, ClientAuthorizedToWriteInf]){
   def getOldWrite2Ans(clientID: Int, replicaID: Int): Write2AnsMessage =
     mapOldOps(clientID).getWrite2Ans(replicaID)
 
-  def updateClientInf(clientId: Int, newNop: Int, newResult: Float, newWriteC: Certificate[GrantTS]):OldOps =
-    OldOps(mapOldOps + (clientId -> mapOldOps(clientId).update(newNop,newResult, newWriteC)))
+  def updateClientInf(clientId: Int, newNop: Int, newResult: Float, executedWriteReq: Write1Message, newWriteC: Certificate[GrantTS]):OldOps = {
+    OldOps(mapOldOps + (clientId -> ClientAuthorizedToWriteInf(newNop, executedWriteReq, newResult, newWriteC)))
+
+  }
 
   def isClientContains(clientId: Int): Boolean =
     mapOldOps.contains(clientId)
@@ -80,7 +78,7 @@ case class ObjectInformation(currentC: Certificate[GrantTS], grantTS: Option[Gra
     val updateOldops = if(oldOps.isEmpty) {
         OldOps(Map(clientID -> ClientAuthorizedToWriteInf(newVal.numberOperation, ops.get.getGrantedRequest, result, currentC)))
      }else {
-        oldOps.get.updateClientInf(clientID, newVal.numberOperation, result, currentC)
+        oldOps.get.updateClientInf(clientID, newVal.numberOperation, result, ops.get.write1RequestsOk.get, currentC)
      }
     ObjectInformation(currentC, grantTS, ops, Option(updateOldops), vs)
 

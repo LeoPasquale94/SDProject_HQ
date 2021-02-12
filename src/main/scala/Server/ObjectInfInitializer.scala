@@ -69,7 +69,7 @@ object ObjectInfInitializer {
   val grantTS11= GrantTS(2, 3, 5, 1, 0.5, 3)
   val grantTS12 = GrantTS(2, 3, 5, 1, 0.5, 4)
 
-  //ToDo consensi di 4 repliche:
+  //ToDo consensi di 4 repliche al timestamp 2:
   val grantTS13 = GrantTS(2, 3, 5, 2, 0.5, 1)
   val grantTS14 = GrantTS(2, 3, 5, 2, 0.5, 2)
   val grantTS15= GrantTS(2, 3, 5, 2, 0.5, 3)
