@@ -53,16 +53,16 @@ class ServerActorTest extends FunSuite with Matchers with ScalaFutures{
 
   test("Client 2 receives Write1OkMessage - client 1 receives Write1RefusedMessage - redundant request  - Client 2 computes write operation"){
     whenReady(replicaRef ?  Write1Message(2, 3, 6, _ + 5)) {
-      case result: Write1OKMessage => result shouldBe Write1OKMessage(GrantTS(2, 3, 6, 2.hashCode() + 3.hashCode() + 6.hashCode(), 2, 0.5, 1), Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
+      case result: Write1OKMessage => result shouldBe Write1OKMessage(GrantTS(2, 3, 6, 2, 0.5, 1), Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
     }
     whenReady(replicaRef ?  Write1Message(2, 3, 6, _ + 5)) {
-      case result: Write1OKMessage => result shouldBe Write1OKMessage(GrantTS(2, 3, 6, 2.hashCode() + 3.hashCode() + 6.hashCode(), 2, 0.5, 1), Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
+      case result: Write1OKMessage => result shouldBe Write1OKMessage(GrantTS(2, 3, 6, 2, 0.5, 1), Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
     }
     whenReady(replicaRef ?  Write1Message(1, 3, 3, _ + 10)){
-      case result: Write1RefusedMessage => result shouldBe Write1RefusedMessage(GrantTS(2, 3, 6, 2.hashCode() + 3.hashCode() + 6.hashCode(), 2, 0.5, 1), 2, 3, 6, Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
+      case result: Write1RefusedMessage => result shouldBe Write1RefusedMessage(GrantTS(2, 3, 6, 2, 0.5, 1), 2, 3, 6, Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
     }
     whenReady(replicaRef ?  Write1Message(1, 3, 3, _ + 10)){
-      case result: Write1RefusedMessage => result shouldBe Write1RefusedMessage(GrantTS(2, 3, 6, 2.hashCode() + 3.hashCode() + 6.hashCode(), 2, 0.5, 1), 2, 3, 6, Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
+      case result: Write1RefusedMessage => result shouldBe Write1RefusedMessage(GrantTS(2, 3, 6, 2, 0.5, 1), 2, 3, 6, Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12)))
     }
     whenReady(replicaRef ? ReadMessage(1, 3)){
       result => result.asInstanceOf[ReadAnsMessage].result shouldBe 10.0

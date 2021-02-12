@@ -41,3 +41,11 @@ case class GrantTS(clientID: Int, objectID: Int,
       other.timeStamp < timeStamp ||
       other.viewStemp < viewStemp
 }
+
+object GrantTS {
+   def apply(clientID: Int, objectID: Int,
+             numberOperation: Int,
+             timeStamp: Int, viewStemp: Double,
+             replicaID: Int):GrantTS =
+      GrantTS(clientID, objectID, numberOperation, clientID.hashCode() + objectID.hashCode() + numberOperation.hashCode(), timeStamp, viewStemp, replicaID)
+}

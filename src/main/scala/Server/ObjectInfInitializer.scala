@@ -8,10 +8,10 @@ object ObjectInfInitializer {
   /* Informazioni relative all'oggetto 1 */
 
   //ToDo consensi di 4 repliche
-  val grantTS1 = GrantTS(1, 1, 1, 1, 1, 0.5, 1)
-  val grantTS2 = GrantTS(1, 1, 1, 1, 1, 0.5, 2)
-  val grantTS3 = GrantTS(1, 1, 1, 1, 1, 0.5, 3)
-  val grantTS4 = GrantTS(1, 1, 1, 1, 1, 0.5, 4)
+  val grantTS1 = GrantTS(1, 1, 1, 1, 0.5, 1)
+  val grantTS2 = GrantTS(1, 1, 1, 1, 0.5, 2)
+  val grantTS3 = GrantTS(1, 1, 1, 1, 0.5, 3)
+  val grantTS4 = GrantTS(1, 1, 1, 1, 0.5, 4)
 
   //ToDo certificato
   val certificate1 = Certificate(List(grantTS1, grantTS2, grantTS3, grantTS4))
@@ -31,10 +31,10 @@ object ObjectInfInitializer {
 
 
   //ToDo consensi di 4 repliche:
-  val grantTS5 = GrantTS(2, 2, 5, 1, 1, 0.5, 1)
-  val grantTS6 = GrantTS(2, 2, 5, 1, 1, 0.5, 2)
-  val grantTS7 = GrantTS(2, 2, 5, 1, 1, 0.5, 3)
-  val grantTS8 = GrantTS(2, 2, 5, 1, 1, 0.5, 4)
+  val grantTS5 = GrantTS(2, 2, 5, 1, 0.5, 1)
+  val grantTS6 = GrantTS(2, 2, 5, 1, 0.5, 2)
+  val grantTS7 = GrantTS(2, 2, 5, 1, 0.5, 3)
+  val grantTS8 = GrantTS(2, 2, 5, 1, 0.5, 4)
 
   //ToDo certificato corrente
   val certificate2 = Certificate(List(grantTS5, grantTS6, grantTS7, grantTS8))
@@ -44,7 +44,7 @@ object ObjectInfInitializer {
   val oldOps = OldOps(Map(2 -> clientAutWrt2))
 
   //ToDo consenso della replica a scrivere sull'oggetto 2 al cliente 2 al timeStemp 2
-  val grantTSObj2 = GrantTS(2, 2, 6, 6, 2, 0.5, 1)
+  val grantTSObj2 = GrantTS(2, 2, 6, 2, 0.5, 1)
 
   //ToDo Risposta della replica alla richiesta precedente
   val resWrt1req = Write1OKMessage(grantTSObj2, certificate2)
@@ -64,16 +64,16 @@ object ObjectInfInitializer {
   val wrt2req = Write1Message(2, 3, 6, _ + 5)
 
   //ToDo consensi di 4 repliche:
-  val grantTS9 = GrantTS(2, 3, 5, 1, 1, 0.5, 1)
-  val grantTS10 = GrantTS(2, 3, 5, 1, 1, 0.5, 2)
-  val grantTS11= GrantTS(2, 3, 5, 1, 1, 0.5, 3)
-  val grantTS12 = GrantTS(2, 3, 5, 1, 1, 0.5, 4)
+  val grantTS9 = GrantTS(2, 3, 5, 1, 0.5, 1)
+  val grantTS10 = GrantTS(2, 3, 5, 1, 0.5, 2)
+  val grantTS11= GrantTS(2, 3, 5, 1, 0.5, 3)
+  val grantTS12 = GrantTS(2, 3, 5, 1, 0.5, 4)
 
   //ToDo consensi di 4 repliche:
-  val grantTS13 = GrantTS(2, 3, 5, 2.hashCode() + 3.hashCode() + 4.hashCode(), 2, 0.5, 1)
-  val grantTS14 = GrantTS(2, 3, 5, 2.hashCode() + 3.hashCode() + 4.hashCode(), 2, 0.5, 2)
-  val grantTS15= GrantTS(2, 3, 5, 2.hashCode() + 3.hashCode() + 4.hashCode(), 2, 0.5, 3)
-  val grantTS16 = GrantTS(2, 3, 5, 2.hashCode() + 3.hashCode() + 4.hashCode(), 2, 0.5, 4)
+  val grantTS13 = GrantTS(2, 3, 5, 2, 0.5, 1)
+  val grantTS14 = GrantTS(2, 3, 5, 2, 0.5, 2)
+  val grantTS15= GrantTS(2, 3, 5, 2, 0.5, 3)
+  val grantTS16 = GrantTS(2, 3, 5, 2, 0.5, 4)
 
   //ToDo certificato corrente
   val certificate3 = Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12))
@@ -83,7 +83,7 @@ object ObjectInfInitializer {
   val oldOps1 = OldOps(Map(2 -> clientAutWrt3))
 
   //ToDo consenso della replica a scrivere sull'oggetto 3 al cliente 2 al timeStemp 2
-  val grantTSObj3 = GrantTS(2, 2, 6, 6, 2, 0.5, 1)
+  val grantTSObj3 = GrantTS(2, 2, 6, 2, 0.5, 1)
 
   //ToDo Risposta della replica alla richiesta precedente
   val resWrt1reqObj3 = Write1OKMessage(grantTSObj2, certificate2)

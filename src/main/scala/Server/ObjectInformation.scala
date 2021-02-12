@@ -122,7 +122,7 @@ case class ObjectInformation(currentC: Certificate[GrantTS], grantTS: Option[Gra
     ops.get.getLastResponse(msg)
 
   private def createGrantTS(msg: Write1Message, replicaID: Int):GrantTS =
-    GrantTS(msg.clientID, msg.objectID, msg.numberOperation, msg.clientID.hashCode() + msg.objectID.hashCode() + msg.numberOperation.hashCode(), currentC.items.head.timeStamp + 1, vs, replicaID)
+    GrantTS(msg.clientID, msg.objectID, msg.numberOperation, currentC.items.head.timeStamp + 1, vs, replicaID)
 }
 
 case class Object(objectInformation: ObjectInformation, result: Float){
