@@ -70,10 +70,10 @@ object ObjectInfInitializer {
   val grantTS12 = GrantTS(2, 3, 5, 1, 1, 0.5, 4)
 
   //ToDo consensi di 4 repliche:
-  val grantTS13 = GrantTS(2, 3, 5, 1, 2, 0.5, 1)
-  val grantTS14 = GrantTS(2, 3, 5, 1, 2, 0.5, 2)
-  val grantTS15= GrantTS(2, 3, 5, 1, 2, 0.5, 3)
-  val grantTS16 = GrantTS(2, 3, 5, 1, 2, 0.5, 4)
+  val grantTS13 = GrantTS(2, 3, 5, 2.hashCode() + 3.hashCode() + 4.hashCode(), 2, 0.5, 1)
+  val grantTS14 = GrantTS(2, 3, 5, 2.hashCode() + 3.hashCode() + 4.hashCode(), 2, 0.5, 2)
+  val grantTS15= GrantTS(2, 3, 5, 2.hashCode() + 3.hashCode() + 4.hashCode(), 2, 0.5, 3)
+  val grantTS16 = GrantTS(2, 3, 5, 2.hashCode() + 3.hashCode() + 4.hashCode(), 2, 0.5, 4)
 
   //ToDo certificato corrente
   val certificate3 = Certificate(List(grantTS9, grantTS10, grantTS11, grantTS12))

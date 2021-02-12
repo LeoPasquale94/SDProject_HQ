@@ -74,17 +74,17 @@ case class ServerActor(replicaID: Int) extends Actor{
 
   }
 
-  private def checkRequest[M](objectId: Int, clientID: Int, nopMsg: Int, objs: Objects): Boolean = {
-    if(objs.isContainsObjectID(objectId) &&
-      objs.isOldOpsNotEmpty(objectId) &&
-      objs.isClientContainedInOldOps(objectId, clientID)){
+  private def checkRequest[M](objectID: Int, clientID: Int, nopMsg: Int, objs: Objects): Boolean = {
+    if(objs.isContainsObjectID(objectID) &&
+      objs.isOldOpsNotEmpty(objectID) &&
+      objs.isClientContainedInOldOps(objectID, clientID)){
 
-      val oldOps = objs.getObject(objectId).getOldOps
-      if(oldOps.getClientInf(objectId) > nopMsg) {
+      val oldOps = objs.getObject(objectID).getOldOps
+      if(oldOps.getClientInf(clientID) > nopMsg) {
         context.sender()! Some("Old_Request")
         return false
       }
-      if(oldOps.getClientInf(objectId) == nopMsg){
+      if(oldOps.getClientInf(clientID) == nopMsg){
         sendSignMsg(oldOps.getOldWrite2Ans(clientID, replicaID))
         return false
       }
