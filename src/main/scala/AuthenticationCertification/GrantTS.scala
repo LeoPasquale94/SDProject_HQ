@@ -17,14 +17,14 @@ case class GrantTS(clientID: Int, objectID: Int,
    //TODO rivedere
    def ==(other: GrantTS): Boolean =
       areTSAndVSEqual(other) &&
-        grantWithoutStamps(other)
+        areAllEqualExceptTSAndVS(other)
 
    def areTSAndVSEqual(other: GrantTS): Boolean =
       other.timeStamp == timeStamp &&
       other.viewStemp == viewStemp
 
    //TODO cambiare nome
-   def grantWithoutStamps(other: GrantTS): Boolean =
+   def areAllEqualExceptTSAndVS(other: GrantTS): Boolean =
       other.clientID == clientID &&
       other.objectID == objectID &&
       other.numberOperation == numberOperation &&

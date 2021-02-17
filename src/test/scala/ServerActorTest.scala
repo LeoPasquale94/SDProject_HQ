@@ -14,7 +14,6 @@ import scala.concurrent.ExecutionContextExecutor
 import scala.concurrent.duration._
 
 
-
 class ServerActorTest extends FunSuite with Matchers with ScalaFutures{
   private val system = ActorSystem()
   implicit val disp: ExecutionContextExecutor =  system.dispatcher

@@ -1,59 +1,62 @@
 package Server
 
-import akka.actor.Actor
-import messages.{ObjectNotFoundMessage, ReadAnsMessage, ReadMessage, SignedMessage, Write1Message, Write1OKMessage, Write1RefusedMessage, Write2AnsMessage, Write2Message}
+import AuthenticationCertification.{Certificate, GrantTS}
+import akka.actor.{Actor, ActorRef}
+import messages.{ObjectNotFoundMessage, ReadAnsMessage, ReadMessage, SignedMessage, Write1Message, Write1OKMessage, Write1RefusedMessage, Write2AnsMessage, Write2Message, WriteBackReadMessage, WriteBackWriteMessage}
 
 case class ServerActor(replicaID: Int) extends Actor{
 
   override def receive: Receive = activeState(ObjectInfInitializer.initObj)
 
-  def activeState(objects: Objects): Receive = {
-    case event: ReadMessage => computeReadMessage(event, objects)
-    case event: Write1Message=> computeWrite1Message(event, objects)
-    case event: Write2Message => computeWrite2Message(event, objects)
+  def activeState(objects: Objects, sender: Option[ActorRef] = Option.empty): Receive = {
+    case event: ReadMessage => computeReadMessage(event, objects, sender)
+    case event: Write1Message=> computeWrite1Message(event, objects, sender)
+    case event: Write2Message => computeWrite2Message(event.writeC, objects, sender)
+    case event: WriteBackWriteMessage => computeWriteBackWriteMessage(event, objects)
+    case event: WriteBackReadMessage => computeWriteBackReadMessage(event, objects)
   }
 
   def frozenState: Receive = ???
 
-  private def computeReadMessage(msg: ReadMessage, objects: Objects): Unit = {
+  private def computeReadMessage(msg: ReadMessage, objects: Objects, sender: Option[ActorRef]): Unit = {
     if(objects.isContainsObjectID(msg.objectID)){
       val result = objects.read(msg.objectID)
       val currentC = objects.getCurrentC(msg.objectID)
-      sendSignMsg(ReadAnsMessage(result,currentC, replicaID))
-      context.become(activeState(objects))
+      sendSignMsg(ReadAnsMessage(result,currentC, replicaID), sendMsg = true, sender)
+      context.become(activeState(objects, Option.empty))
     }else{
-      context.sender() ! ObjectNotFoundMessage()
+      sendSignMsg(ObjectNotFoundMessage())
     }
   }
 
-  private def computeWrite1Message(msg: Write1Message, objects: Objects): Unit = {
+  private def computeWrite1Message(msg: Write1Message, objects: Objects, sender: Option[ActorRef] ): Unit = {
     if(checkRequest(msg.objectID, msg.clientID, msg.numberOperation, objects)){
 
       if(objects.write1RequestExist(msg)){
-        context.sender() ! objects.getLastResponse(msg)
+        sendSignMsg(objects.getLastResponse(msg),sendMsg = true ,sender)
       }else if(objects.isGrantTSEmpty(msg.objectID)){
         val updateObjects = objects.setGrantTS(msg, replicaID)
         val grantTS = updateObjects.getGrantTS(msg.objectID)
         val response = Write1OKMessage(grantTS, objects.getCurrentC(msg.objectID))
-        sendSignMsg(response)
-        context.become(activeState(updateObjects.appendRequest(msg, response)))
+        sendSignMsg(response, sendMsg = true, sender)
+        context.become(activeState(updateObjects.appendRequest(msg, response), Option.empty))
       }else{
         val currentC = objects.getCurrentC(msg.objectID)
         val grantTS = objects.getGrantTS(msg.objectID)
         val response = Write1RefusedMessage(grantTS, grantTS.clientID, grantTS.objectID, grantTS.numberOperation, currentC)
-        sendSignMsg(response)
-        context.become(activeState(objects.appendRequest(msg, response)))
+        sendSignMsg(response, sendMsg = true, sender)
+        context.become(activeState(objects.appendRequest(msg, response), Option.empty))
       }
     }
   }
 
-  private def computeWrite2Message(msg: Write2Message, objects: Objects): Unit = {
-    val clientWriteCertificate = msg.writeC.items.head
+  private def computeWrite2Message(writeC: Certificate[GrantTS], objects: Objects, sender: Option[ActorRef], sendMsg: Boolean = true): Unit = {
+    val clientWriteCertificate = writeC.items.head
     if(checkRequest(clientWriteCertificate.objectID, clientWriteCertificate.clientID, clientWriteCertificate.numberOperation, objects)){
 
       val currentC = objects.getCurrentC(clientWriteCertificate.objectID).items.head
       val vs = objects.getViewstemp(clientWriteCertificate.objectID)
-
+      //ToDo bisogna controllare write.cid == grantTS.cid
       if(vs == clientWriteCertificate.viewStemp && currentC.timeStamp == clientWriteCertificate.timeStamp - 1 ){
         val write1Req = objects.getGrantedRequest(clientWriteCertificate.objectID)
         val objectID = write1Req.objectID
@@ -61,20 +64,30 @@ case class ServerActor(replicaID: Int) extends Actor{
         val updateObjects = objects
           .write(objectID, write1Req.op)
           .setGrantTSEmpty(objectID)
-          .setCurrentC(objectID, msg.writeC)
+          .setCurrentC(objectID, writeC)
           .updateClientInf(objectID, write1Req.clientID)
           .setWrite1ReqExeRecently(write1Req)
-        val response = Write2AnsMessage(updateObjects.getResult(write1Req.objectID), msg.writeC, replicaID)
-        sendSignMsg(response)
-        context.become(activeState(updateObjects))
+        val response = Write2AnsMessage(updateObjects.getResult(write1Req.objectID), writeC, replicaID)
+        sendSignMsg(response, sendMsg, sender)
+        context.become(activeState(updateObjects, sender))
       }else{
-        //ToDo gestisci conflitto
+        //ToDo ottenere le informazioni mancati dalle altre repliche invocando BFT
       }
     }
 
   }
 
-  private def checkRequest[M](objectID: Int, clientID: Int, nopMsg: Int, objs: Objects): Boolean = {
+  private def computeWriteBackWriteMessage(msg: WriteBackWriteMessage, objects: Objects): Unit = {
+    computeWrite2Message(msg.writeC, objects,  Option(context.sender()), sendMsg = false)
+    self ! msg.write1Message
+  }
+
+  private def computeWriteBackReadMessage(msg: WriteBackReadMessage, objects: Objects): Unit = {
+    computeWrite2Message(msg.writeC, objects,  Option(context.sender()), sendMsg = false)
+    self ! ReadMessage(msg.clietID, msg.objectID)
+  }
+
+  private def checkRequest[M](objectID: Int, clientID: Int, nopMsg: Int, objs: Objects, sendMsg: Boolean = true): Boolean = {
     if(objs.isContainsObjectID(objectID) &&
       objs.isOldOpsNotEmpty(objectID) &&
       objs.isClientContainedInOldOps(objectID, clientID)){
@@ -85,14 +98,19 @@ case class ServerActor(replicaID: Int) extends Actor{
         return false
       }
       if(oldOps.getClientInf(clientID) == nopMsg){
-        sendSignMsg(oldOps.getOldWrite2Ans(clientID, replicaID))
+        sendSignMsg(oldOps.getOldWrite2Ans(clientID, replicaID), sendMsg)
         return false
       }
     }
     true
   }
 
-  private def sendSignMsg[M](msg: M): Unit =  {
-    context.sender() ! msg
+  private def sendSignMsg[M](msg: M, sendMsg: Boolean = true, sender: Option[ActorRef] = Option.empty ): Unit =  {
+    if(sendMsg) {
+      if(sender.isEmpty)
+        context.sender() ! msg
+      else
+        sender.get ! msg
+    }
   }
 }
