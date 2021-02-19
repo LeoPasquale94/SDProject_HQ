@@ -8,7 +8,7 @@ import messages._
 case class ClientActor(clientID: Int, serverReferences: Map[Int, ActorRef]) extends Actor {
 
   private val N_REPLICAS = serverReferences.size
-  private val QUORUM = 2 / 3 * (N_REPLICAS - 1)
+  private val QUORUM = 2 / 3 * (N_REPLICAS - 1) + 1
 
 
   override def receive : Receive = initState(0, Option.empty)

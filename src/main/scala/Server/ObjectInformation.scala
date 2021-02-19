@@ -46,6 +46,7 @@ case class ClientAuthorizedToWriteInf(nop: Int, mostRecentyExeWriteReq: Write1Me
   def getWrite2Ans(replicaID: Int): Write2AnsMessage =
     Write2AnsMessage(result, currentC, replicaID)
 }
+
 case class OldOps(mapOldOps: Map[Int, ClientAuthorizedToWriteInf]){
 
   def add(clientID: Int, clientInf:ClientAuthorizedToWriteInf): OldOps =

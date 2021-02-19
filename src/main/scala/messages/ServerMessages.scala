@@ -17,4 +17,4 @@ case class ReadAnsMessage(result: Float, currentC: Certificate[GrantTS], replica
 
 case class ObjectNotFoundMessage()
 
-case class StartContentionResolutionMessage(conflictC: Certificate[Write1OKMessage], ops: Ops,currentC: Certificate[GrantTS], grantTS: GrantTS)
+case class StartContentionResolutionMessage(conflictC: Certificate[Write1OKMessage], ops: Ops, currentC: Certificate[GrantTS], grantTS: GrantTS)
